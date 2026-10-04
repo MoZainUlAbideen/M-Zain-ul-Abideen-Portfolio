@@ -92,19 +92,7 @@ export const PODIUMS = [
               place: 'Peshawar, Khyber Pakhtunkhwa, Pakistan · Remote',
               href: 'https://www.linkedin.com/in/muhammad-zain-ul-abideen-nust/details/experience/',
               text: 'Led the Collaborations team under WWF in support of education initiatives, contributing to awareness and learning activities focused on environmental responsibility and sustainable living. Engaged with communities and helped promote educational efforts that encouraged a greater understanding of conservation and the importance of protecting our environment.',
-            },
-          ],
-        },
-        aspiration: {
-          heading: 'Aspiration',
-          items: [
-            {
-              sport: 'Problem solving',
-              logo: 'assets/life/leetcode.png',
-              logoAlt: 'LeetCode logo',
-              name: 'LeetCode',
-              text: "Always got a bit jealous by these DSA freaks, don't know if I am gonna ace this or get really good at it,  but I do practice leetcode problems every other weekend. Click the link if you want to follow up",
-              repo: { label: 'GitHub', href: 'https://github.com/MoZainUlAbideen/DSA_Python' },
+              quote: { text: 'Love it or Lose it', by: 'WWF' },
             },
           ],
         },
@@ -120,6 +108,7 @@ export const PODIUMS = [
               text: "The first complete football match I watched was the 2015 Champions League final, and I've never looked back since. It's a hard love affair with this team, they almost bottle the Champions League every year, but they dismantle Real Madrid three times a year. Hahahah.",
               // hover / tap the badge to pop up the player's photo
               player: { label: 'Player of choice', img: 'assets/life/player.jpg', alt: 'Pedri in the FC Barcelona number 8 shirt' },
+              quote: { text: 'Never give up, sit down, or grieve, find another way!!', by: 'Pedri' },
             },
             {
               sport: 'Cricket',
@@ -127,7 +116,63 @@ export const PODIUMS = [
               logoAlt: 'Pakistan cricket star emblem',
               name: 'Pakistan Cricket Team',
               text: "This Love affair has always been one sided. Still can't believe how I end up seeing all their matches ball by ball, well some things are bigger than sports. After all, this is the only sport we play.",
-              player: { label: 'Player of choice', img: 'assets/life/player-cricket.jpg', alt: 'Babar Azam celebrating in the Pakistan shirt' },
+              player: { label: 'Player of choice', img: 'assets/life/player-akram.jpg', alt: 'Wasim Akram celebrating a wicket in the 1992 World Cup final' },
+              quote: { text: 'First of all, convince yourself that you are the best, because the rest of your life is going to go proving this to others.', by: 'Wasim Akram' },
+            },
+            {
+              sport: 'MMA',
+              logo: 'assets/life/ufc.png',
+              logoAlt: 'UFC logo',
+              name: 'UFC',
+              text: "My first ever experience was watching Khabib Nurmagomedov vs Conor McGregor in 2018, and since then I've followed the sport on and off, but always kept up with who the champions are in each division.",
+              player: { label: 'Fighter of choice', img: 'assets/life/player-khabib.jpg', alt: 'Khabib Nurmagomedov in his papakha at a UFC weigh-in' },
+              quote: { text: 'Too much movies make your heart weak.', by: 'Khabib Nurmagomedov' },
+            },
+            {
+              sport: 'Motorsport',
+              logo: 'assets/life/f1.png',
+              logoAlt: 'Formula 1 logo',
+              name: 'Formula 1',
+              text: "Only started following it closely recently, since playing the F1 video games on my PC, but I always knew a bit about F1.",
+              player: { label: 'Driver of choice', img: 'assets/life/player-alonso.jpg', alt: 'Fernando Alonso in his Renault race suit' },
+              quote: { text: "I knew he'd hit the brakes. He has a wife and two kids at home, I don't.", by: 'Fernando Alonso' },
+            },
+          ],
+        },
+        fascinating: {
+          heading: 'Not Competitive but Fascinating',
+          items: [
+            {
+              sport: 'Sports entertainment',
+              logo: 'assets/life/wwe.png',
+              logoAlt: 'WWE logo',
+              name: 'WWE',
+              text: "Since childhood, I've always loved not only watching these scripted fights and the storytelling, but also practising them at home.",
+              player: { label: 'Superstar of choice', img: 'assets/life/player-punk.jpg', alt: 'CM Punk on the mic in the ring' },
+              quote: { text: "As long as you speak from your heart, you can't go wrong!!", by: 'CM Punk' },
+            },
+          ],
+        },
+      },
+    },
+  },
+  {
+    // mirror of Vision on the bottom touchline, half in / half out (see FIELD.touchPods in arena.js)
+    id: 'aspiration', kind: 'aspiration', label: 'ASPIRATION', x: 19, z: 32, color: '#ff6b6b',
+    panel: {
+      kicker: 'Always climbing',
+      title: 'Aspiration',
+      life: {
+        aspiration: {
+          heading: 'Problem Solving',
+          items: [
+            {
+              sport: 'DSA practice',
+              logo: 'assets/life/leetcode.png',
+              logoAlt: 'LeetCode logo',
+              name: 'LeetCode',
+              text: "Always got a bit jealous by these DSA freaks, don't know if I am gonna ace this or get really good at it,  but I do practice leetcode problems every other weekend. Click the link if you want to follow up",
+              repo: { label: 'GitHub', href: 'https://github.com/MoZainUlAbideen/DSA_Python' },
             },
           ],
         },

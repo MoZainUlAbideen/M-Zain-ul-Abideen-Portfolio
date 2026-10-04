@@ -733,3 +733,13 @@ kbd {
 }
 .story__pic:hover .story__img--photo { transform: scale(1.03) rotate(0deg); }
 @media (max-width: 600px) { .story--photo.story--flip { grid-template-columns: 1fr; } .story__img--photo { max-width: 280px; margin: 0 auto; } }
+
+/* favourite quotes in Life Uncoded */
+.life-quote {
+  margin: 12px 0 4px; padding: 10px 14px 10px 16px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, .02));
+}
+.life-quote p { margin: 0 !important; font: italic 600 15px/1.5 var(--font-body, inherit); color: var(--ink); }
+.life-quote cite { display: block; margin-top: 6px; font: 700 12px/1 var(--font-display); font-style: normal; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }

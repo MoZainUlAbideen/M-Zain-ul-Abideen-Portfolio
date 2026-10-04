@@ -14,7 +14,7 @@ export const FIELD = {
   ballR: 2,
   cornerGap: 4,   // glass is left open this far from each corner; the corner podiums sit in the gap
   // podiums that sit ON a touchline, half in / half out (side: +1 = bottom, -1 = top)
-  touchPods: [{ x: -19, side: 1 }],
+  touchPods: [{ x: -19, side: 1 }, { x: 19, side: 1 }], // Vision and Aspiration
 };
 
 // Dugout ("My Academy") behind the top touchline
@@ -421,11 +421,18 @@ export function buildArena(scene) {
   const seats = [];
   const tiers = 10, step = 2.2, rise = 1.55;
   // gap = [from, to] along the stand, left open for the lowest `gapTiers` tiers (the dugout)
-  const addStand = (len, alongX, sign, base, gap = null, gapTiers = 0) => {
+  // gaps = list of [from, to] along the stand, left open for the lowest `gapTiers` tiers
+  const addStand = (len, alongX, sign, base, gaps = [], gapTiers = 0) => {
     for (let i = 0; i < tiers; i++) {
       const off = base + 1.2 + i * step;
       const h = 1 + i * rise;
-      const spans = gap && i < gapTiers ? [[-len / 2, gap[0]], [gap[1], len / 2]] : [[-len / 2, len / 2]];
+      let spans = [[-len / 2, len / 2]];
+      if (gaps.length && i < gapTiers) {
+        spans = [];
+        let from = -len / 2;
+        for (const [a, b] of [...gaps].sort((p, q) => p[0] - q[0])) { spans.push([from, a]); from = b; }
+        spans.push([from, len / 2]);
+      }
       for (const [a, b] of spans) {
         const L = b - a, mid = (a + b) / 2;
         const m = alongX
@@ -442,9 +449,9 @@ export function buildArena(scene) {
     }
   };
   const longLen = (halfX - FIELD.cornerGap - 1.5) * 2;
-  addStand(longLen, true, -1, halfZ + 1, [DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1], 2);
-  const tp = FIELD.touchPods.find((p) => p.side === 1);
-  addStand(longLen, true, 1, halfZ + 1, tp ? [tp.x - FIELD.cornerGap - 1.5, tp.x + FIELD.cornerGap + 1.5] : null, 2);
+  addStand(longLen, true, -1, halfZ + 1, [[DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1]], 2);
+  const tpGaps = FIELD.touchPods.filter((p) => p.side === 1).map((p) => [p.x - FIELD.cornerGap - 1.5, p.x + FIELD.cornerGap + 1.5]);
+  addStand(longLen, true, 1, halfZ + 1, tpGaps, 2);
   addStand(halfZ * 2 - 4, false, -1, halfX + goalDepth + 2);
   addStand(halfZ * 2 - 4, false, 1, halfX + goalDepth + 2);
 

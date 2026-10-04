@@ -174,6 +174,10 @@ export class UI {
   renderLife(life) {
     const frag = document.createDocumentFragment();
     const logo = (src, alt) => el('img', { class: 'life__logo', src, alt, loading: 'lazy' });
+    // a favourite quote, shown under the card text
+    const quote = (q) => q ? el('blockquote', { class: 'life-quote' },
+      el('p', {}, `\u201c${q.text}\u201d`),
+      q.by ? el('cite', {}, `\u2014 ${q.by}`) : null) : null;
 
     if (life.community) {
       frag.append(el('h3', { class: 'section' }, life.community.heading));
@@ -185,6 +189,7 @@ export class UI {
             el('p', { class: 'life-card__org' }, link(it.href, it.org, 'life-card__link')),
             el('p', { class: 'life-card__meta' }, link(it.href, it.place, 'life-card__link')),
             el('p', { class: 'life-card__text' }, it.text),
+            quote(it.quote),
           ),
         ));
       }
@@ -215,16 +220,19 @@ export class UI {
       }
     }
 
-    if (life.beyond) {
-      frag.append(el('h3', { class: 'section' }, life.beyond.heading));
-      if (life.beyond.title) frag.append(el('p', { class: 'life__big' }, life.beyond.title));
-      for (const it of life.beyond.items) {
+    // sports sections: "Beyond" (competitive) and "Not Competitive but Fascinating"
+    for (const group of [life.beyond, life.fascinating]) {
+      if (!group) continue;
+      frag.append(el('h3', { class: 'section' }, group.heading));
+      if (group.title) frag.append(el('p', { class: 'life__big' }, group.title));
+      for (const it of group.items) {
         const card = el('article', { class: 'life-card life-card--sport' },
           logo(it.logo, it.logoAlt),
           el('div', {},
             el('p', { class: 'life-card__sport' }, it.sport),
             el('h4', { class: 'life-card__title' }, it.name),
             el('p', { class: 'life-card__text' }, it.text),
+            quote(it.quote),
           ),
         );
         if (it.player) {

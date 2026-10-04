@@ -98,6 +98,17 @@ function iconFor(kind, mat) {
     g.add(ring);
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 14), new THREE.MeshBasicMaterial({ color: mat.emissive.clone().multiplyScalar(0.8) }));
     g.add(pupil);
+  } else if (kind === 'aspiration') {
+    // a mountain peak with a flag on top
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.0, 4), mat);
+    peak.position.y = -0.15;
+    g.add(peak);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    pole.position.y = 0.6;
+    g.add(pole);
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.03), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    flag.position.set(0.17, 0.77, 0);
+    g.add(flag);
   } else if (kind === 'certs') {
     const medal = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 32), mat);
     medal.rotation.x = Math.PI / 2;
