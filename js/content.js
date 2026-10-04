@@ -148,7 +148,7 @@ export const PODIUMS = [
               logoAlt: 'WWE logo',
               name: 'WWE',
               text: "Since childhood, I've always loved not only watching these scripted fights and the storytelling, but also practising them at home.",
-              player: { label: 'Superstar of choice', img: 'assets/life/player-punk.jpg', alt: 'CM Punk on the mic in the ring' },
+              player: { label: 'Superstar of choice', img: 'assets/life/player-punk.jpg', alt: 'CM Punk celebrating with the World Heavyweight Championship', wide: true },
               quote: { text: "As long as you speak from your heart, you can't go wrong!!", by: 'CM Punk' },
             },
           ],

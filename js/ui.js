@@ -236,7 +236,7 @@ export class UI {
           ),
         );
         if (it.player) {
-          const btn = el('button', { class: 'poc', type: 'button', 'aria-label': it.player.label, 'aria-expanded': 'false' },
+          const btn = el('button', { class: `poc${it.player.wide ? ' poc--wide' : ''}`, type: 'button', 'aria-label': it.player.label, 'aria-expanded': 'false' },
             el('span', { class: 'poc__icon', 'aria-hidden': 'true' },
               // simple shirt outline
               (() => {

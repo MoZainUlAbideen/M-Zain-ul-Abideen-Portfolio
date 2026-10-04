@@ -743,3 +743,12 @@ kbd {
 }
 .life-quote p { margin: 0 !important; font: italic 600 15px/1.5 var(--font-body, inherit); color: var(--ink); }
 .life-quote cite { display: block; margin-top: 6px; font: 700 12px/1 var(--font-display); font-style: normal; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+
+/* landscape player photo: a wider pop-up that opens to the right of the button */
+.poc--wide .poc__pop { left: 0; width: min(340px, 78vw); transform: translate(0, 10px) scale(.94); transform-origin: 30px 100%; }
+.poc--wide:hover .poc__pop, .poc--wide:focus-visible .poc__pop, .poc--wide.is-open .poc__pop { transform: translate(0, 0) scale(1); }
+.poc--wide .poc__pop::after { left: 30px; }
+@media (max-width: 600px) {
+  .poc--wide .poc__pop { left: auto; right: 0; width: min(320px, 82vw); transform-origin: calc(100% - 30px) 100%; }
+  .poc--wide .poc__pop::after { left: auto; right: 30px; }
+}
