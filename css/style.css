@@ -771,3 +771,48 @@ kbd {
 .quick__btn--main span { color: #ffbf47; }
 .quick__btn--main:hover, .quick__btn--main:focus-visible { border-color: #ffbf47; background: rgba(255, 191, 71, .14); }
 @media (max-height: 500px) { .quick { margin-top: 14px; padding-top: 12px; } .quick__title { font-size: 12px; margin-bottom: 8px; } }
+
+/* Vision: real car vs in-game car, one wide picture */
+.story--compare { display: block; padding: 10px; }
+.story--compare .story__pic { display: block; cursor: help; }
+.story__img--compare {
+  display: block; width: 100%; max-height: none; aspect-ratio: 1180 / 560; object-fit: cover;
+  border-radius: 10px; filter: none;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .45), 0 0 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.story--compare .story__pic:hover .story__img--compare { transform: none; }
+.compare__tag {
+  position: absolute; top: 12px; padding: 6px 10px; border-radius: 999px;
+  font: 700 11px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase;
+  background: rgba(8, 11, 30, .78); border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); color: var(--ink);
+  pointer-events: none;
+}
+.compare__tag--l { left: 12px; }
+.compare__tag--r { right: 12px; }
+
+/* Aspirations: Spain 2030 dream with a compact, slanted stadium strip */
+.dream {
+  padding: 18px; margin-bottom: 12px; border-radius: 14px;
+  background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), rgba(255, 255, 255, .035);
+  border: 1px solid var(--line);
+}
+.dream .life__big { margin: 0 0 6px !important; }
+.dream__text { margin: 0 0 14px !important; color: var(--ink); }
+.stadiums { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; height: 130px; }
+.stadium { position: relative; overflow: hidden; margin: 0 -10px; clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%); }
+.stadium:first-child { margin-left: 0; clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%); }
+.stadium:last-child { margin-right: 0; clip-path: polygon(14% 0, 100% 0, 100% 100%, 0 100%); }
+.stadium img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; }
+.stadium:hover img { transform: scale(1.06); }
+.stadium::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(5, 8, 24, .85)); pointer-events: none; }
+.stadium__name {
+  position: absolute; left: 0; right: 0; bottom: 8px; z-index: 1; text-align: center;
+  font: 700 11px/1.1 var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: #fff;
+}
+@media (max-width: 600px) { .stadiums { height: 92px; } .stadium__name { font-size: 9px; bottom: 6px; } }
+@media (max-width: 600px) {
+  .stadiums { height: 100px; }
+  .stadium__name { padding: 0 16%; font-size: 8.5px; letter-spacing: .04em; line-height: 1.15; }
+  .compare__tag { top: 8px; padding: 4px 8px; font-size: 9px; }
+  .compare__tag--l { left: 8px; } .compare__tag--r { right: 8px; }
+}

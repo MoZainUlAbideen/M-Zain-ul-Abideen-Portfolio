@@ -131,6 +131,17 @@ export class UI {
     if (p.vision) {
       p.vision.forEach((s, i) => {
         body.append(el('h3', { class: 'section' }, s.heading));
+        if (s.compare) {
+          // full-width "real vs game" picture with a label on each half
+          body.append(el('div', { class: 'story story--compare' },
+            el('span', { class: 'story__pic', tabindex: '0' },
+              el('img', { class: 'story__img story__img--compare', src: s.img, alt: s.alt, loading: 'lazy' }),
+              el('span', { class: 'compare__tag compare__tag--l' }, s.compare.left),
+              el('span', { class: 'compare__tag compare__tag--r' }, s.compare.right),
+              s.tip ? el('span', { class: 'story__tip', role: 'tooltip' }, s.tip) : null),
+          ));
+          return;
+        }
         const imgClass = `story__img${s.photo ? ' story__img--photo' : ''}`;
         body.append(el('div', { class: `story${i % 2 ? ' story--flip' : ''}${s.photo ? ' story--photo' : ''}` },
           el('p', { class: 'story__text' }, s.text),
@@ -193,6 +204,20 @@ export class UI {
           ),
         ));
       }
+    }
+
+    // Aspirations: a dream at the top with a compact strip of stadium photos
+    if (life.dream) {
+      const d = life.dream;
+      frag.append(el('h3', { class: 'section' }, d.heading));
+      frag.append(el('article', { class: 'dream' },
+        el('p', { class: 'life__big' }, d.title),
+        el('p', { class: 'dream__text' }, d.text),
+        el('ul', { class: 'stadiums' }, d.stadiums.map((st) => el('li', { class: 'stadium' },
+          el('img', { src: st.img, alt: st.alt, loading: 'lazy' }),
+          el('span', { class: 'stadium__name' }, st.name),
+        ))),
+      ));
     }
 
     if (life.aspiration) {

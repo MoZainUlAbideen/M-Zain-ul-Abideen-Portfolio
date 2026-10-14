@@ -50,7 +50,7 @@ Add `?debug` to the URL to expose `physics`, `camera` and `scene` in the browser
     js/ui.js          HUD and popups
     js/audio.js       arena ambience, engine, goal roar + horn, hit sounds (Web Audio, no files)
     js/dugout.js      the dugout + floating My Academy emblem
-    js/academy/       My Academy: path chooser + four games
+    js/academy/       My Academy: path chooser + six games
       hallucination.js  Hallucination Hunt (evaluation)
       retrieval.js      Retrieval Relay (RAG)
       pitcrew.js        Agent Pit Crew (agents)
@@ -59,7 +59,7 @@ Add `?debug` to the URL to expose `physics`, `camera` and `scene` in the browser
     tests/            logic tests for the academy games
 
 ## Tests
-The academy game logic has 21 tests (pipelines, retrieval verdicts, every golf hole):
+The academy game logic has 30 tests (pipelines, retrieval verdicts, every golf hole, quote checks, confidence thresholds):
 
     node tests/academy.test.mjs
 

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-//  My Academy: full-screen overlay with four AI paths.
+//  My Academy: full-screen overlay with six AI paths.
 //  chooser → briefing → game → results. Progress is remembered
 //  in this visitor's browser only (nice-to-have, never required).
 // ─────────────────────────────────────────────────────────────
@@ -8,6 +8,8 @@ import * as hallucination from './hallucination.js';
 import * as retrieval from './retrieval.js';
 import * as pitcrew from './pitcrew.js';
 import * as golf from './golf.js';
+import * as quotecheck from './quotecheck.js';
+import * as confidence from './confidence.js';
 
 const PATHS = [
   {
@@ -45,6 +47,24 @@ const PATHS = [
     steps: ['Set the learning rate with the slider.', 'Hit Train and watch each step of gradient descent.', 'Land in the hole within the step budget.', 'The last hole unlocks momentum.'],
     built: 'RISETech internship: tuning classifiers from 71% to 99% accuracy',
     lesson: 'Every model I train starts with this exact tension: step size versus stability. Momentum is how optimisers like Adam roll past small bumps instead of getting stuck in them.',
+  },
+  {
+    id: 'earshot', game: quotecheck, icon: ICONS.wave, color: '#a78bfa',
+    tag: 'Speech + RAG', title: 'Timestamp Detective', cta: 'Press play',
+    blurb: 'Check every quote an AI pulled from a podcast, down to the second.',
+    lead: 'An answer that cites a podcast is only useful if the quote was really said, and said at that moment. You get the transcript with word-level timestamps and an AI answer full of citations. Play the quote checker.',
+    steps: ['Read the question and the transcript.', 'For each citation pick Exact, Wrong time or Never said.', 'For a Wrong time, click the transcript word where the quote really starts to repair it.', 'Run the checker and see which citations would have reached a listener.'],
+    built: 'Earshot: verbatim quote checker + one repair pass',
+    lesson: 'This is Earshot’s quote checker. Plain code confirms every quote appears word for word in the Whisper transcript, then checks its timestamp. A single repair pass fixes citations instead of discarding them, which raised answered questions from 77.8% to 93.3% and correctly timed citations from 62.2% to 80.0%.',
+  },
+  {
+    id: 'dehqan', game: confidence, icon: ICONS.leaf, color: '#a3e635',
+    tag: 'Computer vision', title: 'Confidence Call', cta: 'Open the field kit',
+    blurb: 'Decide when a crop-disease model should answer, and when it should stay quiet.',
+    lead: 'A model that is wrong with confidence is worse than one that says “I’m not sure”. Each batch shows a leaf-disease model’s predictions on a confidence scale. Set the bar it must clear before it is allowed to answer a farmer.',
+    steps: ['Read the field notes for the batch.', 'Drag the threshold: dots to the right get an answer, dots to the left go to a human expert.', 'Meet the goals for accuracy and for how many farmers still get help.', 'The last batch unlocks a leaf gate for photos that aren’t leaves at all.'],
+    built: 'Dehqan: selective prediction + a zero-shot CLIP leaf gate',
+    lesson: 'This is selective prediction, the core of Dehqan. Lab accuracy (95.5%) collapsed on real field photos (11.5%), so the model answers only above 0.9 confidence: about a quarter of field photos, 79% of them correct, and the rest go to an extension office. A CLIP check rejects non-leaves first, because no confidence threshold can stop a model that is confidently wrong about a shoe.',
   },
 ];
 
@@ -110,7 +130,7 @@ export class Academy {
       el('div', { class: 'ac-hero' },
         el('p', { class: 'ac-kicker' }, 'My Academy · AI engineering lab'),
         el('h2', { class: 'ac-h' }, 'Choose your AI path'),
-        el('p', { class: 'ac-sub' }, 'Four disciplines, four short missions. Play through the problems I actually solve as an AI engineer, and walk away knowing how that part of AI really works.'),
+        el('p', { class: 'ac-sub' }, 'Six disciplines, six short missions. Play through the problems I actually solve as an AI engineer, and walk away knowing how that part of AI really works.'),
         el('p', { class: 'ac-progress' }, `${done} / ${PATHS.length} paths completed`),
       ),
       el('div', { class: 'ac-cards' }, ...cards),

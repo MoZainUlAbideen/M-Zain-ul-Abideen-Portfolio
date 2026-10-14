@@ -5,6 +5,8 @@ const pc = await import(base + 'pitcrew.js');
 const rr = await import(base + 'retrieval.js');
 const lg = await import(base + 'golf.js');
 const hh = await import(base + 'hallucination.js');
+const qc = await import(base + 'quotecheck.js');
+const cc = await import(base + 'confidence.js');
 let n = 0; const t = (name, fn) => { fn(); n++; console.log('  ok -', name); };
 
 // ── Agent Pit Crew ──
@@ -72,4 +74,39 @@ t('every hole has a winning setting inside its slider range', () => {
 t('every round has at least one made-up sentence with a reason and a hint', () => hh.ROUNDS.forEach((r) => {
   const bad = r.answer.filter((s) => !s.ok); assert.ok(bad.length >= 1); bad.forEach((s) => { assert.ok(s.why); assert.ok(s.hint); });
 }));
+// ── Timestamp Detective (Earshot) ──
+t('quote finder: exact words found, punctuation and case ignored', () => {
+  const r = qc.ROUNDS[0];
+  assert.ok(qc.findQuote(r, 'OUR full backs, kept getting caught upfield'));
+  assert.equal(qc.findQuote(r, 'the pressing numbers went up by half'), null); // half-true quotes don't pass
+});
+t('every episode has an exact, a mistimed and a never-said citation', () => qc.ROUNDS.forEach((r) => {
+  const v = r.claims.map((c) => qc.verdict(r, c));
+  for (const k of ['exact', 'mistimed', 'missing']) assert.ok(v.includes(k), `${r.show} lacks ${k}`);
+}));
+t('wrong-time calls only score when the repair lands on the real start', () => {
+  const r = qc.ROUNDS[0], c = r.claims.find((x) => qc.verdict(r, x) === 'mistimed'), hit = qc.findQuote(r, c.quote);
+  assert.equal(qc.scoreClaim(r, c, 'mistimed', hit.time), 1);
+  assert.equal(qc.scoreClaim(r, c, 'mistimed', hit.time + 5), 0);
+  assert.equal(qc.scoreClaim(r, c, 'mistimed', null), 0);
+  assert.equal(qc.scoreClaim(r, c, 'exact'), 0);
+});
+t('word times inside a line follow the transcript clock', () => {
+  const ws = qc.words(qc.ROUNDS[0]);
+  assert.equal(ws[0].time, 724); assert.ok(ws.every((w, i) => i === 0 || w.time >= ws[i - 1].time));
+});
+
+// ── Confidence Call (Dehqan) ──
+const sweep = (r, gate) => { const out = []; for (let t = 40; t <= 100; t++) out.push([t / 100, cc.evaluate(r, t / 100, gate)]); return out; };
+t('every batch fails at its starting threshold without the gate', () => cc.ROUNDS.forEach((r) => assert.equal(cc.evaluate(r, r.start, false).pass, false, r.name)));
+t('every batch has a passing threshold (with the gate where it exists)', () => cc.ROUNDS.forEach((r) => assert.ok(sweep(r, !!r.gate).some(([, e]) => e.pass), r.name)));
+t('field photos: answering everything is badly wrong; 0.90 passes; 0.95 is too timid', () => {
+  const r = cc.ROUNDS[1];
+  assert.ok(cc.evaluate(r, 0.4).accuracy < 0.4);
+  assert.equal(cc.evaluate(r, 0.9).pass, true);
+  const timid = cc.evaluate(r, 0.95); assert.equal(timid.checks.accuracy, true); assert.equal(timid.checks.coverage, false);
+});
+t('anything goes: no threshold works without the leaf gate', () => assert.ok(sweep(cc.ROUNDS[2], false).every(([, e]) => !e.pass)));
+t('leaf gate removes every non-leaf at any threshold', () => sweep(cc.ROUNDS[2], true).forEach(([, e]) => assert.equal(e.nonLeaf, 0)));
+
 console.log(`\n${n} tests passed`);

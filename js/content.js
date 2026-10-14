@@ -65,10 +65,10 @@ export const PODIUMS = [
         },
         {
           heading: 'Where did this portfolio Idea come from',
-          text: "\u201cThere's this mini car placed on my desk, and every time I look at it, Life resets\u201d",
-          img: 'assets/life/beyond-car-photo.jpg',
-          photo: true, // a real photo: shown framed, not as a cut-out
-          alt: 'Photo of the purple Beyond Mini 4WD toy car on my desk',
+          // no text: the real car and its in-game replica, side by side
+          img: 'assets/life/beyond-real-vs-game.jpg',
+          compare: { left: 'The real one', right: 'In the game' },
+          alt: 'The purple Beyond Mini 4WD toy car next to its 3D replica from this game, split by a zig-zag line',
           tip: "That's the car you're driving right now",   // pops up when you hover the picture
         },
       ],
@@ -158,11 +158,21 @@ export const PODIUMS = [
   },
   {
     // mirror of Vision on the bottom touchline, half in / half out (see FIELD.touchPods in arena.js)
-    id: 'aspiration', kind: 'aspiration', label: 'ASPIRATION', x: 19, z: 32, color: '#ff6b6b',
+    id: 'aspiration', kind: 'aspiration', label: 'ASPIRATIONS', x: 19, z: 32, color: '#ff6b6b',
     panel: {
       kicker: 'Always climbing',
-      title: 'Aspiration',
+      title: 'Aspirations',
       life: {
+        dream: {
+          heading: 'The Dream',
+          title: 'Spain 2030',
+          text: 'Spain co-hosts the 2030 FIFA World Cup with Portugal and Morocco, and I want to be there: in the stands, watching football live in these massive stadiums.',
+          stadiums: [
+            { img: 'assets/life/stadium-campnou.jpg', name: 'Spotify Camp Nou', alt: 'Spotify Camp Nou, Barcelona, during its rebuild' },
+            { img: 'assets/life/stadium-bernabeu.jpg', name: 'Santiago Bernabéu', alt: 'Inside the Santiago Bernabéu, Madrid' },
+            { img: 'assets/life/stadium-metropolitano.jpg', name: 'Metropolitano', alt: 'Inside the Metropolitano, Madrid' },
+          ],
+        },
         aspiration: {
           heading: 'Problem Solving',
           items: [
