@@ -230,6 +230,36 @@ export const PODIUMS = [
       title: 'Projects',
       items: [
         {
+          title: 'Earshot',
+          href: 'https://earshot-ten-pi.vercel.app',
+          tagline: 'Ask any podcast a question and hear the exact moment it was answered.',
+          points: [
+            'Transcribes episodes with Whisper large-v3-turbo (2.65% WER, 0.55 s worst word-timestamp error) and links every claim to the second it was said in the original audio.',
+            'Benchmarked keyword, vector, hybrid and reranked search over 875 passages: reranking lifted recall@5 from 0.76 to 0.93, but at 1.35 s vs 69 ms, so hybrid ships and the trade-off is documented.',
+            'A verbatim quote checker with a one-shot repair pass raised answered questions from 77.8% to 93.3% and correctly timed citations from 62.2% to 80.0%.',
+          ],
+          tech: ['Python', 'Whisper', 'pgvector', 'Hybrid search'],
+          links: [
+            { label: 'Live', href: 'https://earshot-ten-pi.vercel.app' },
+            { label: 'GitHub', href: `${GH}/Earshot` },
+          ],
+        },
+        {
+          title: 'Dehqan',
+          href: 'https://dehqan.vercel.app',
+          tagline: 'A crop doctor for Pakistani farmers that tells you when it is not sure.',
+          points: [
+            '27-condition, 14-crop leaf-disease classifier with its lab-to-field gap exposed (95.5% on lab photos, 11.5% in real fields); 1,800 field photos raised field accuracy to 47.4% vs a 7.4% baseline.',
+            'Selective prediction defers to extension offices below 0.9 confidence (79% accuracy on answered photos), plus a zero-shot CLIP leaf gate and a segmentation severity grader (81.5% vs 42% baseline).',
+            'Routes English, Roman Urdu and Urdu questions (90% on a frozen test set), refuses pesticide-dose requests (7/7), and finds safe spray windows from a live 5-day forecast.',
+          ],
+          tech: ['Python', 'PyTorch', 'CLIP', 'Segmentation'],
+          links: [
+            { label: 'Live', href: 'https://dehqan.vercel.app' },
+            { label: 'GitHub', href: `${GH}/Dehqan` },
+          ],
+        },
+        {
           title: 'Parity',
           href: 'https://parity-iota-puce.vercel.app',
           tagline: 'AI web-accessibility auditor that finds, explains and fixes WCAG 2.2 issues.',
