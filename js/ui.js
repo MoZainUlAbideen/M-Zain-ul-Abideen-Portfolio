@@ -132,13 +132,9 @@ export class UI {
       p.vision.forEach((s, i) => {
         body.append(el('h3', { class: 'section' }, s.heading));
         if (s.compare) {
-          // full-width "real vs game" picture with a label on each half
+          // full-width "real vs game" picture
           body.append(el('div', { class: 'story story--compare' },
-            el('span', { class: 'story__pic', tabindex: '0' },
-              el('img', { class: 'story__img story__img--compare', src: s.img, alt: s.alt, loading: 'lazy' }),
-              el('span', { class: 'compare__tag compare__tag--l' }, s.compare.left),
-              el('span', { class: 'compare__tag compare__tag--r' }, s.compare.right),
-              s.tip ? el('span', { class: 'story__tip', role: 'tooltip' }, s.tip) : null),
+            el('img', { class: 'story__img story__img--compare', src: s.img, alt: s.alt, loading: 'lazy' }),
           ));
           return;
         }

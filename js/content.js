@@ -67,9 +67,8 @@ export const PODIUMS = [
           heading: 'Where did this portfolio Idea come from',
           // no text: the real car and its in-game replica, side by side
           img: 'assets/life/beyond-real-vs-game.jpg',
-          compare: { left: 'The real one', right: 'In the game' },
+          compare: true,
           alt: 'The purple Beyond Mini 4WD toy car next to its 3D replica from this game, split by a zig-zag line',
-          tip: "That's the car you're driving right now",   // pops up when you hover the picture
         },
       ],
     },
