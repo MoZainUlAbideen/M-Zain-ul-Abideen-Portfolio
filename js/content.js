@@ -43,6 +43,7 @@ export const PODIUMS = [
       ],
       // Shown under a "Contact" heading. Resume opens in a new tab.
       contact: [
+        { label: 'Website', href: 'https://m-zainulabideen.vercel.app/' },
         { label: 'LinkedIn', href: 'https://www.linkedin.com/in/muhammad-zain-ul-abideen-nust/' },
         { label: 'GitHub', href: GH },
         { label: 'Resume', href: 'resume/Muhammad-Zain-ul-Abideen-Resume.pdf' },
