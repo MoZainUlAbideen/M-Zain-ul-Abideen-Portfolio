@@ -17,15 +17,22 @@ import { FIELD, arenaContact, goalChannel } from './arena.js';
 import { CAR_DIMS } from './car.js';
 import { PODIUM_R, PODIUM_H } from './podiums.js';
 
+// Numbers follow Rocket League's own (scaled to this arena): throttle fades out near top speed,
+// gravity pulls fully along walls, the "sticky" force is only half of gravity, so the ceiling
+// can't hold you unless your speed through the curve keeps you pressed on.
 export const CFG = {
-  accel: 26, maxSpeed: 23, reverseAccel: 20, reverseMax: 11, brake: 55, coast: 7,
+  // accel = pull from a standstill; it fades to 10% at top speed
+  accel: 77, maxSpeed: 23, reverseAccel: 20, reverseMax: 11, brake: 55, coast: 7,
   boostAccel: 40, boostMax: 40, boostDrain: 33, boostRegen: 9,
   turn: 2.5, grip: 9,
-  gravity: 32, jump: 13, doubleJump: 10, flipSpeed: 11, flipTime: 0.55, jumpWindow: 1.25,
-  airPitch: 3.4, airYaw: 2.6,
-  wallGravity: 0.55,   // share of gravity that drags a car down a wall while it is stuck to it
-  stick: 1.15,          // how hard a throttling car is pressed into the surface (x gravity)
-  stickIdle: 0.5,       // ... and with no throttle (not enough for the ceiling: you drop off)
+  gravity: 32,
+  jump: 10, jumpHold: 46, jumpHoldTime: 0.2, // tap = small hop, hold = full jump
+  doubleJump: 10.5, flipSpeed: 11, flipTime: 0.55, jumpWindow: 1.25,
+  // air control: torque, damping when you let go, top spin rate (rad/s)
+  pitchTorque: 11, yawTorque: 8, airDamp: 4, airMaxRate: 4.2,
+  wallGravity: 1,      // full gravity along walls: climbing costs speed
+  stick: 0.5,          // sticky force while driving (x gravity), like RL's
+  stickIdle: 0.3,      // ... coasting
   supersonic: 36,
   ballGravity: 22, ballBounce: 0.62, ballWallBounce: 0.7, ballRoll: 0.35, ballAirDrag: 0.04, ballMax: 60,
   hitRestitution: 0.55, hitKick: 0.4,
@@ -45,6 +52,7 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), n = new THREE.Vecto
 const left = new THREE.Vector3(), q = new THREE.Quaternion(), m4 = new THREE.Matrix4();
 
 const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };
+const curveInfo = { curved: false, axis: null };
 
 function carQuat(c, out) {
   left.crossVectors(c.up, c.fwd).normalize();
@@ -65,6 +73,7 @@ export class Physics {
       steer: 0, onGround: true, boost: 100, boosting: false, jumpHeld: false, roll: 0, speed: 0,
       airTime: 0, jumped: false, jumpTimer: 0, canDouble: false, flip: null,
       supersonic: false, demoT: 0, hitCooldown: 0, surface: 'floor',
+      spinP: 0, spinY: 0, pitchArmed: true, jumpHoldT: 0, jumpDir: WORLD_UP.clone(), curved: false, curveAxis: null,
     });
     this.car = newCar(SPAWN.car, SPAWN.yaw, 'blue');
     this.bot = newCar(SPAWN.bot, SPAWN.botYaw, 'orange');
@@ -191,7 +200,11 @@ export class Physics {
     if (turn) c.fwd.applyQuaternion(q.setFromAxisAngle(up, turn));
 
     if (c.boosting) vF += CFG.boostAccel * H;
-    else if (inp.throttle > 0) { if (vF < CFG.maxSpeed) vF += (vF < -0.5 ? CFG.brake : CFG.accel) * inp.throttle * H; } // throttle alone tops out at maxSpeed
+    else if (inp.throttle > 0) {
+      // throttle pulls hard from a standstill and fades to almost nothing at top speed (RL's curve)
+      if (vF < -0.5) vF += CFG.brake * inp.throttle * H;
+      else if (vF < CFG.maxSpeed) vF += CFG.accel * (1 - 0.9 * Math.max(0, vF) / CFG.maxSpeed) * inp.throttle * H;
+    }
     else if (inp.throttle < 0) vF -= (vF > 0.5 ? CFG.brake : CFG.reverseAccel) * -inp.throttle * H;
     else vF -= Math.sign(vF) * Math.min(Math.abs(vF), CFG.coast * H);
     if (!c.boosting && vF > CFG.maxSpeed) vF = Math.max(CFG.maxSpeed, vF - 14 * H);
@@ -206,9 +219,19 @@ export class Physics {
     tmp2.set(0, -CFG.gravity, 0).addScaledVector(up, -gN);
     c.vel.addScaledVector(tmp2, (c.surface === 'floor' ? 1 : CFG.wallGravity) * H);
 
-    // stuck to it? on the ceiling gravity pulls you off unless you hold throttle
-    const stick = CFG.gravity * (inp.throttle || c.boosting ? CFG.stick : CFG.stickIdle);
-    if (gN > stick && c.surface !== 'floor') { this.leaveGround(c); c.vel.addScaledVector(up, 1.5); return; } // drop off (along up = away from the surface)
+    // still stuck to it? What holds you on: the sticky force, plus (on a curve) your speed pressing
+    // you into it. What pulls you off: gravity. So you can carry speed through the top curve, but
+    // the flat ceiling can't hold you and you drop, just like in Rocket League.
+    if (c.surface !== 'floor') {
+      const stick = CFG.gravity * (inp.throttle || c.boosting ? CFG.stick : CFG.stickIdle);
+      let press = 0;
+      if (c.curved) {
+        tmp2.copy(c.vel).addScaledVector(up, -c.vel.dot(up));
+        if (c.curveAxis) tmp2.setComponent('xyz'.indexOf(c.curveAxis), 0); // only speed across the curve counts
+        press = tmp2.lengthSq() / FIELD.R;
+      }
+      if (gN > stick + press) { this.leaveGround(c); c.vel.addScaledVector(up, 1.5); return; } // drop off (along up = away from the surface)
+    }
     // too slow on a wall with nothing pressing you into it: you peel off (RL: stop on a wall and you fall)
     if (c.surface === 'wall' && !inp.throttle && !c.boosting && c.vel.length() < 6 && up.y < 0.7) { this.leaveGround(c); c.vel.addScaledVector(up, 1.5); return; }
 
@@ -216,11 +239,18 @@ export class Physics {
       c.vel.addScaledVector(up, CFG.jump);
       this.leaveGround(c);
       c.jumped = true; c.canDouble = true; c.jumpTimer = 0;
+      c.jumpDir = up.clone(); c.jumpHoldT = CFG.jumpHoldTime;
       this.onEvent('jump', c);
     }
   }
 
-  leaveGround(c) { c.onGround = false; c.airTime = 0; c.surface = 'air'; }
+  leaveGround(c) {
+    c.onGround = false; c.airTime = 0; c.surface = 'air'; c.jumpHoldT = 0;
+    c.spinP = 0; c.spinY = 0;
+    // W/S held while driving keeps meaning "throttle": it only starts pitching the car once
+    // you let go of it in the air and press again (stops the nose-dive on every jump)
+    c.pitchArmed = false;
+  }
 
   airStep(c, inp, pressJump) {
     c.airTime += H;
@@ -234,17 +264,25 @@ export class Physics {
       c.fwd.applyQuaternion(q); c.up.applyQuaternion(q);
       if (c.flip.t >= CFG.flipTime) c.flip = null;
     } else {
-      // air control: W/S pitch (nose down / up), A/D yaw
-      if (inp.throttle) {
-        q.setFromAxisAngle(left, inp.throttle * CFG.airPitch * H);
-        c.fwd.applyQuaternion(q); c.up.applyQuaternion(q);
-      }
-      if (inp.steer) c.fwd.applyQuaternion(q.setFromAxisAngle(c.up, inp.steer * CFG.airYaw * H));
+      // air control: W/S pitch (nose down / up), A/D yaw. Spin builds up and dies down smoothly.
+      if (!inp.throttle) c.pitchArmed = true;
+      const pIn = c.pitchArmed ? inp.throttle : 0, yIn = inp.steer;
+      c.spinP += (CFG.pitchTorque * pIn - CFG.airDamp * c.spinP * (1 - Math.abs(pIn))) * H;
+      c.spinY += (CFG.yawTorque * yIn - CFG.airDamp * c.spinY * (1 - Math.abs(yIn))) * H;
+      c.spinP = Math.max(-CFG.airMaxRate, Math.min(CFG.airMaxRate, c.spinP));
+      c.spinY = Math.max(-CFG.airMaxRate, Math.min(CFG.airMaxRate, c.spinY));
+      if (c.spinP) { q.setFromAxisAngle(left, c.spinP * H); c.fwd.applyQuaternion(q); c.up.applyQuaternion(q); }
+      if (c.spinY) c.fwd.applyQuaternion(q.setFromAxisAngle(c.up, c.spinY * H));
       c.up.sub(tmp.copy(c.fwd).multiplyScalar(c.up.dot(c.fwd))).normalize();
+    }
+    // holding jump just after take-off pushes you higher (a full jump vs a tap)
+    if (c.jumpHoldT > 0) {
+      if (inp.jump) c.vel.addScaledVector(c.jumpDir, CFG.jumpHold * H);
+      c.jumpHoldT = inp.jump ? c.jumpHoldT - H : 0;
     }
     // second jump: double jump, or a flip if a direction is held
     if (pressJump && c.canDouble && c.jumpTimer < CFG.jumpWindow) {
-      c.canDouble = false;
+      c.canDouble = false; c.jumpHoldT = 0;
       const fx = inp.throttle, sx = inp.steer;
       if (Math.abs(fx) > 0.3 || Math.abs(sx) > 0.3) {
         // flip: a burst of speed that way (flat), and a spin
@@ -270,8 +308,9 @@ export class Physics {
   // keep the car inside the arena; land on (or stay on) whatever it touches
   carSurface(c) {
     core.copy(c.pos).addScaledVector(c.up, CORE);
-    const pen = arenaContact(core, CORE, n);
+    const pen = arenaContact(core, CORE, n, curveInfo);
     if (pen > 0) {
+      c.curved = curveInfo.curved; c.curveAxis = curveInfo.axis;
       core.addScaledVector(n, pen);
       const intoSurface = c.vel.dot(n);
       if (!c.onGround) {
@@ -284,7 +323,7 @@ export class Physics {
           if (Math.abs(c.fwd.dot(n)) > 0.95) c.fwd.copy(c.vel).addScaledVector(n, -c.vel.dot(n)); // nose straight into it: use the slide direction
           if (c.fwd.lengthSq() < 1e-6) c.fwd.set(1, 0, 0).addScaledVector(n, -n.x);
           c.fwd.addScaledVector(n, -c.fwd.dot(n)).normalize();
-          c.onGround = true; c.flip = null; c.jumped = false; c.canDouble = false;
+          c.onGround = true; c.flip = null; c.jumped = false; c.canDouble = false; c.spinP = c.spinY = 0;
         }
       } else {
         // already driving: follow the surface as it curves

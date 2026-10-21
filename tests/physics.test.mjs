@@ -33,11 +33,18 @@ t('a car on the ceiling with no throttle drops off and lands upright on the floo
   run(ph, 2.5, IDLE);
   assert.equal(c.surface, 'floor'); assert.ok(c.up.y > 0.99, `up.y ${c.up.y}`); assert.ok(c.pos.y < 0.05);
 });
-t('holding throttle keeps you on the ceiling', () => {
+t('the ceiling cannot hold a car: even at full throttle it drops off (as in Rocket League)', () => {
   const ph = fresh(); const c = ph.car;
   c.pos.set(-20, FIELD.height, 0); c.up.set(0, -1, 0); c.fwd.set(1, 0, 0); c.vel.set(15, 0, 0); c.onGround = true; c.surface = 'ceiling';
-  run(ph, 1, { throttle: 1, steer: 0, boost: false, jump: false });
-  assert.equal(c.surface, 'ceiling');
+  run(ph, 0.5, { throttle: 1, steer: 0, boost: false, jump: false });
+  assert.equal(c.onGround, false);
+});
+t('throttle alone climbs the wall, carries over the top curve, then drops off and lands', () => {
+  const ph = fresh(); const c = ph.car; c.pos.set(0, 0, 0); c.fwd.set(0, 0, 1);
+  const seen = []; let top = 0;
+  for (let s = 0; s < 5.5; s += 1 / 60) { ph.step(1 / 60, { throttle: 1, steer: 0, boost: false, jump: false }); top = Math.max(top, c.pos.y); if (seen.at(-1) !== c.surface) seen.push(c.surface); }
+  assert.ok(top > FIELD.height - 3, `only reached y=${top.toFixed(1)}`);
+  assert.deepEqual(seen.slice(0, 5), ['floor', 'wall', 'ceiling', 'air', 'floor']);
 });
 t('a car parked on a wall slides down it', () => {
   const ph = fresh(); const c = ph.car;
@@ -61,6 +68,20 @@ t('double jump goes higher than a single jump', () => {
     return top;
   };
   assert.ok(peak(true) > peak(false) + 1, `${peak(true)} vs ${peak(false)}`);
+});
+t('holding jump goes much higher than tapping it', () => {
+  const peak = (hold) => { const ph = fresh(); let top = 0; run(ph, 1.4, (s) => { top = Math.max(top, ph.car.pos.y); return { ...IDLE, jump: s < hold }; }); return top; };
+  assert.ok(peak(0.3) > peak(0.02) * 2, `${peak(0.3).toFixed(1)} vs ${peak(0.02).toFixed(1)}`);
+});
+t('holding W while you jump keeps the car level (W only pitches once pressed again in the air)', () => {
+  const ph = fresh(); const c = ph.car; let minUp = 1;
+  run(ph, 2.2, (s) => { if (s > 1) minUp = Math.min(minUp, c.up.y); return { throttle: 1, steer: 0, boost: false, jump: s > 1 && s < 1.3 }; });
+  assert.ok(minUp > 0.99, `tilted to up.y ${minUp.toFixed(2)}`);
+});
+t('pressing W in the air pitches the nose down gradually, not instantly', () => {
+  const ph = fresh(); const c = ph.car; const ups = [];
+  run(ph, 0.6, (s) => { if (s > 0.15) ups.push(c.up.y); return { throttle: s > 0.15 ? 1 : 0, steer: 0, boost: false, jump: s < 0.3 }; });
+  assert.ok(ups[3] > 0.99 && ups.at(-1) < 0.98, `first ${ups[3].toFixed(3)}, last ${ups.at(-1).toFixed(3)}`);
 });
 t('front flip (jump, then jump + W) gives speed and lands facing forward', () => {
   const ph = fresh(); const c = ph.car;

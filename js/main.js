@@ -273,6 +273,7 @@ startBtn.addEventListener('click', () => {
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), camUp = new THREE.Vector3(0, 1, 0);
 const want = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3(), fwdS = new THREE.Vector3(1, 0, 0), upS = new THREE.Vector3(0, 1, 0);
 const tmpN = new THREE.Vector3(), WUP = new THREE.Vector3(0, 1, 0);
+const lastAirDir = new THREE.Vector3(1, 0, 0);
 camera.position.set(-30, 5, -9);
 
 function updateCamera(dt, t) {
@@ -302,10 +303,18 @@ function updateCamera(dt, t) {
     want.copy(pos).addScaledVector(dir, -11).addScaledVector(camUp, 4.6);
     look.copy(pos).lerp(b, 0.4).addScaledVector(camUp, 1.5);
   } else {
-    // in the air, follow the direction of travel rather than a spinning nose
-    if (!c.onGround && c.vel.lengthSq() > 25) dir.copy(c.vel).normalize(); else dir.copy(fwdS);
-    if (!c.onGround) dir.y *= 0.4;
+    if (c.onGround) dir.copy(fwdS);
+    else {
+      // in the air: stay level behind the direction you're travelling (never above the car looking
+      // straight down, which is what made jumps and wall drops look wrong)
+      dir.set(c.vel.x, 0, c.vel.z);
+      if (dir.lengthSq() < 16) dir.set(fwdS.x, 0, fwdS.z);
+      if (dir.lengthSq() < 1e-4) dir.copy(lastAirDir);
+    }
     dir.normalize();
+    if (!c.onGround) lastAirDir.lerp(dir, 1 - Math.exp(-4 * dt)).normalize(), dir.copy(lastAirDir);
+    else lastAirDir.set(dir.x, 0, dir.z).normalize();
+    if (lastAirDir.lengthSq() < 1e-4) lastAirDir.set(1, 0, 0);
     want.copy(pos).addScaledVector(dir, -10.5).addScaledVector(camUp, 4.4);
     look.copy(pos).addScaledVector(dir, 4).addScaledVector(camUp, 1.4);
   }
@@ -321,6 +330,8 @@ function updateCamera(dt, t) {
     shake = Math.max(0, shake - dt * 1.5);
   }
   camera.up.copy(camUp);
+  tmpN.copy(camLook).sub(camera.position).normalize();
+  if (Math.abs(tmpN.dot(camUp)) > 0.97) camera.up.set(dir.x, 0, dir.z).normalize(); // never look along "up"
   camera.lookAt(camLook);
   // 70° tall on a landscape screen; on a tall phone, widen it so you still see the sides
   const baseFov = camera.aspect >= 1.2 ? 70 : Math.min(100, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(46)) / camera.aspect)));
@@ -385,7 +396,7 @@ function frame() {
 
   // nearest podium in reach
   nearPod = null;
-  let best = REACH;
+  let best = c.pos.y < 3 && c.demoT <= 0 ? REACH : 0; // only when you're actually down on the pitch
   for (const p of spots) {
     const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z);
     if (d < best) { best = d; nearPod = p; }

@@ -14,8 +14,8 @@ Plain static files: Three.js loads from a CDN, so there's no build step (npm is 
 |---|---|
 | W A S D / arrows | drive |
 | Shift | boost |
-| Space | jump; press again in the air to double jump, or with a direction held to flip |
-| W / S in the air | pitch nose down / up (A / D turn) |
+| Space | jump (hold for a higher jump); press again in the air to double jump, or with a direction held to flip |
+| W / S in the air | pitch nose down / up (A / D turn). W held from the ground keeps the car level; press it again in the air to pitch |
 | N | start / end a 1:30 match vs the bot |
 | E | open the podium you're next to |
 | C | ball cam on/off |
@@ -67,13 +67,14 @@ Add `?debug` to the URL to expose `physics`, `camera` and `scene` in the browser
     tests/            logic tests for the academy games
 
 ## Tests
-50 tests in two files. The physics tests need three.js, so install it once:
+55 tests in two files. The physics tests need three.js, so install it once:
 
     npm install
     npm test
 
-- `tests/physics.test.mjs` (20): driving up a wall and over the ceiling, falling off the ceiling
-  without throttle, peeling off a wall when stopped, top speed, double jump, flips, the ball on the
+- `tests/physics.test.mjs` (25): climbing a wall and dropping off the ceiling (it can't hold a car,
+  as in Rocket League), peeling off a wall when stopped, top speed, tap vs. held jumps, staying level
+  when jumping with W held, gradual air pitch, double jump, flips, the ball on the
   curved shell (500 random shots never escape), goals vs. hitting the wall above the goal, boost
   recharge, podium booths staying clear of the ball and cars, demolitions, 50/50 kickoffs, and full
   bot-vs-bot matches.

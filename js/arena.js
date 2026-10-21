@@ -39,7 +39,9 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 // How far a sphere (centre p, radius r) has pushed into the arena shell.
 // Returns the depth (0 = not touching) and writes the inward surface normal to `out`.
 // The shell is a box with every edge rounded by R; in the goal mouth the end wall is open.
-export function arenaContact(p, r, out) {
+// Optional `info` gets { curved, axis }: whether the touch point is on a rounded edge (radius R)
+// and, for an edge, the direction it runs along (null at a rounded corner).
+export function arenaContact(p, r, out, info) {
   const { halfX, halfZ, height, R, goalHalfW, goalH } = FIELD;
   const ix = halfX - R, iz = halfZ - R;
   const mouth = Math.abs(p.z) < goalHalfW && p.y < goalH;
@@ -49,6 +51,12 @@ export function arenaContact(p, r, out) {
   const d = Math.hypot(dx, dy, dz), lim = R - r;
   if (d <= lim) return 0;
   out.set(-dx / d, -dy / d, -dz / d);
+  if (info) {
+    const e = 1e-3, nx = Math.abs(dx) > e, ny = Math.abs(dy) > e, nz = Math.abs(dz) > e;
+    const count = nx + ny + nz;
+    info.curved = count > 1 && Math.min(...[dx, dy, dz].filter((v) => Math.abs(v) > e).map(Math.abs)) > 0.05 * d;
+    info.axis = count === 2 ? (!nx ? 'x' : !ny ? 'y' : 'z') : null;
+  }
   return d - lim;
 }
 
