@@ -1,11 +1,23 @@
 {
+  "framework": null,
+  "installCommand": "echo static site, nothing to install",
+  "buildCommand": "echo static site, nothing to build",
+  "outputDirectory": ".",
   "rewrites": [
-    { "source": "/resume", "destination": "/resume/Muhammad-Zain-ul-Abideen-Resume.pdf" }
+    {
+      "source": "/resume",
+      "destination": "/resume/Muhammad-Zain-ul-Abideen-Resume.pdf"
+    }
   ],
   "headers": [
     {
       "source": "/resume/(.*)",
-      "headers": [{ "key": "Content-Disposition", "value": "inline; filename=\"Muhammad-Zain-ul-Abideen-Resume.pdf\"" }]
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename=\"Muhammad-Zain-ul-Abideen-Resume.pdf\""
+        }
+      ]
     }
   ]
 }
