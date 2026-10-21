@@ -2,9 +2,9 @@
 ### https://m-zain-ul-abideen-portfolio.vercel.app/
 
 A small Rocket League-style arena in the browser, under a glass dome. You drive **Beyond** (a
-replica of my purple Mini 4WD) on a neon tile pitch inside a closed, glass-walled arena: drive up
-the curved walls and across the ceiling, flip, play a 1:30 match against a red bot, and pull up
-to the glowing podiums on the touchlines.
+replica of my purple Mini 4WD) on a Rocket League-style pitch inside a closed, glass-walled arena:
+drive up the curved walls and across the ceiling, flip, play a 1:30 match against a red bot, and
+pull into the glowing spots by the walls to open the podiums standing in booths outside the glass.
 Press **E** beside a podium to open it.
 
 Plain static files: Three.js loads from a CDN, so there's no build step (npm is only used to run the tests).
@@ -47,10 +47,10 @@ Add `?debug` to the URL to expose `physics`, `camera` and `scene` in the browser
     css/style.css     UI styles
     js/main.js        renderer, camera, input, game loop
     js/content.js     all words, links and podium positions
-    js/arena.js       the closed arena (neon pitch, curved glass shell, goals), stands, dome, lights,
+    js/arena.js       the closed arena (pitch, curved glass shell, goals), stands, dome, lights,
                       ball, and arenaContact(): the shape everything collides with
     js/car.js         the Beyond Mini 4WD model
-    js/podiums.js     glowing podiums
+    js/podiums.js     glowing podiums in booths outside the glass + their spots on the pitch
     js/physics.js     car physics on any surface (walls, ceiling), jumps, flips, demos; ball; goals
     js/bot.js         the red bot
     js/match.js       1:30 match, kickoff countdown, golden goal
@@ -75,7 +75,7 @@ Add `?debug` to the URL to expose `physics`, `camera` and `scene` in the browser
 - `tests/physics.test.mjs` (20): driving up a wall and over the ceiling, falling off the ceiling
   without throttle, peeling off a wall when stopped, top speed, double jump, flips, the ball on the
   curved shell (500 random shots never escape), goals vs. hitting the wall above the goal, boost
-  recharge, podiums on the touchlines staying out of play, demolitions, 50/50 kickoffs, and full
+  recharge, podium booths staying clear of the ball and cars, demolitions, 50/50 kickoffs, and full
   bot-vs-bot matches.
 - `tests/academy.test.mjs` (30): the My Academy games (pipelines, retrieval verdicts, every golf
   hole, quote checks, confidence thresholds).

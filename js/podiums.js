@@ -1,7 +1,14 @@
 // ─────────────────────────────────────────────────────────────
 //  Glowing podiums: hex pedestal, light beam, floating icon, label.
+//  Like the My Academy dugout, each one stands in a booth OUTSIDE the
+//  glass, in a gap in the stands; the only thing on the pitch is its
+//  glowing dashed "spot" by the wall, where you press E. Nothing here
+//  touches the ball or the cars.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
+import { FIELD } from './arena.js';
+
+export const SPOT = { w: 10, depth: 5 }; // the glowing area on the pitch
 
 export const PODIUM_R = 2.3;   // collision radius of the base
 export const PODIUM_H = 1.9;   // top of the pedestal
@@ -128,6 +135,7 @@ function iconFor(kind, mat) {
 
 export function buildPodiums(scene, list) {
   const baseMat = new THREE.MeshStandardMaterial({ color: 0x1b2140, roughness: 0.45, metalness: 0.7 });
+  const boothMat = new THREE.MeshStandardMaterial({ color: 0x141b3a, roughness: 0.7, metalness: 0.3 });
   const beamAlpha = beamTexture();
   const out = [];
 
@@ -203,8 +211,33 @@ export function buildPodiums(scene, list) {
     if (headline) headline.userData.baseY = headline.position.y;
 
     g.add(base, column, cap, trim, ring, disc, beam, icon, label, light);
+    // booth floor behind the glass, with a glowing front edge facing the pitch
+    const side = Math.sign(data.z) || 1;
+    const plat = new THREE.Mesh(new THREE.BoxGeometry(9, 0.3, 6), boothMat);
+    plat.position.set(0, 0.15, 0);
+    plat.receiveShadow = true;
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(9, 0.12, 0.25), new THREE.MeshBasicMaterial({ color }));
+    edge.position.set(0, 0.32, -side * 3);
+    g.add(plat, edge);
     scene.add(g);
-    out.push({ data, group: g, ring, disc, beam, icon, label, headline, light, glowMat, x: data.x, z: data.z, near: 0 });
+
+    // the spot on the pitch: a dashed box by the wall, in the podium's colour
+    const sz = side * (FIELD.flatZ - SPOT.depth / 2);
+    const dashMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
+    const fillMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.1, depthWrite: false });
+    const area = new THREE.Group();
+    area.position.set(data.x, 0, sz);
+    const dash = (x, z, lx, lz) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(lx, lz), dashMat); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.035, z); area.add(m); };
+    const hw = SPOT.w / 2, hd = SPOT.depth / 2;
+    for (let t = -hw; t < hw - 0.5; t += 1.4) for (const zz of [-hd, hd]) dash(t + 0.45, zz, 0.9, 0.22);
+    for (const sx of [-hw, hw]) for (let t = -hd; t < hd - 0.5; t += 1.4) dash(sx, t + 0.45, 0.22, 0.9);
+    const fill = new THREE.Mesh(new THREE.PlaneGeometry(SPOT.w, SPOT.depth), fillMat);
+    fill.rotation.x = -Math.PI / 2; fill.position.y = 0.03;
+    area.add(fill);
+    scene.add(area);
+
+    // x, z = where the car has to be (the spot); boothZ = where the podium itself stands
+    out.push({ data, group: g, ring, disc, beam, icon, label, headline, light, glowMat, dashMat, fillMat, x: data.x, z: sz, boothZ: data.z, near: 0 });
   }
   return out;
 }
@@ -219,6 +252,8 @@ export function updatePodiums(pods, t, dt, activeId) {
     p.icon.position.y = 3.3 + Math.sin(t * 1.8 + p.z) * 0.18;
     p.ring.material.opacity = 0.45 + 0.35 * pulse + 0.2 * p.near;
     p.ring.scale.setScalar(1 + 0.04 * pulse + 0.08 * p.near);
+    p.dashMat.opacity = 0.5 + 0.3 * pulse + 0.2 * p.near;
+    p.fillMat.opacity = 0.07 + 0.1 * p.near;
     p.beam.material.opacity = 0.12 + 0.05 * pulse + 0.12 * p.near;
     p.glowMat.emissiveIntensity = 1.8 + 0.8 * pulse + 1.5 * p.near;
     p.light.intensity = 14 + 6 * pulse + 16 * p.near;

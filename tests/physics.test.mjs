@@ -123,9 +123,16 @@ t('boost drains while boosting and recharges by itself', () => {
   run(ph, 2, IDLE); assert.ok(c.boost > after + 10, 'should recharge');
 });
 
-console.log('Podiums');
-t('every podium sits on a touchline (half on the pitch, half on the ramp)', () => {
-  for (const p of PODIUMS) assert.equal(Math.abs(p.z), FIELD.flatZ, `${p.id} at z=${p.z}`);
+console.log('Podiums (booths outside the glass)');
+t('every podium stands outside the glass, clear of the ball and cars', () => {
+  for (const p of PODIUMS) assert.ok(Math.abs(p.z) > FIELD.halfZ + 2.5, `${p.id} at z=${p.z}`);
+});
+t('a car driving along each wall at full speed is never pushed by a podium', () => {
+  const ph = new Physics(PODIUMS); ph.botOn = false; const c = ph.car; // even with podium colliders switched on
+  for (const z of [-FIELD.flatZ + 2, FIELD.flatZ - 2]) {
+    c.pos.set(-50, 0, z); c.fwd.set(1, 0, 0); c.up.set(0, 1, 0); c.vel.set(30, 0, 0); c.onGround = true; c.surface = 'floor';
+    for (let s = 0; s < 3; s += 1 / 60) { ph.step(1 / 60, { throttle: 1, steer: 0, boost: false, jump: false }); assert.ok(Math.abs(c.pos.z - z) < 0.5, `pushed at x=${c.pos.x.toFixed(1)}`); }
+  }
 });
 t('a ball rolling the length of the pitch inside the touchlines never touches a podium', () => {
   const ph = new Physics(PODIUMS); ph.botOn = false; ph.autoReset = false;

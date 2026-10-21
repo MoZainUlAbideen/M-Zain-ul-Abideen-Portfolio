@@ -150,7 +150,7 @@ addEventListener('resize', showFs);
 
 let goals = 0;
 let shake = 0;
-const physics = new Physics(pods, {
+const physics = new Physics([], { // podiums stand outside the glass: nothing on the pitch to hit
   onGoal(goalSide, pos) {
     if (match.on) {
       if (!match.goal(goalSide)) return;
