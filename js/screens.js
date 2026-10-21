@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 //  Stadium screen above the end you face at kick-off.
-//  Types "Welcome to My World !" next to the retro portrait and shows
-//  the goals count. A canvas, redrawn only when something on it changes.
+//  Types "Welcome to My World !" next to the retro portrait.
+//  A canvas, redrawn only when something on it changes.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
 import { FIELD } from './arena.js';
@@ -88,7 +88,7 @@ export function buildScreens(scene) {
   portrait.src = 'assets/life/zain-retro.png';
 
   const seq = { i: 0, t: 0, hold: 0 };
-  let goals = 0, flash = 0, last = '', blink = 0, baseReady = false, textLeft = 80, textMaxW = 1000;
+  let last = '', blink = 0, baseReady = false, textLeft = 80, textMaxW = 1000;
 
   // paint the parts that never change into the static layer
   function paintBase() {
@@ -129,21 +129,6 @@ export function buildScreens(scene) {
       ctx.fillRect(left + ctx.measureText(lastLine).width + 12, top + (lines.length - 1) * lh, 48, 90);
     }
 
-    // goals counter, same pixel font as the title
-    const hot = flash > 0 && Math.floor(flash * 6) % 2 === 0;
-    const gy = H - 150;
-    ctx.font = `64px ${PIXEL}`;
-    ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 14;
-    ctx.fillStyle = '#ffd27a';
-    const label = 'GOALS : ';
-    ctx.fillText(label, left, gy);
-    const nx = left + ctx.measureText(label).width + 10;
-    ctx.font = `88px ${PIXEL}`;
-    ctx.shadowColor = hot ? '#ffffff' : '#ffb347'; ctx.shadowBlur = hot ? 24 : 14;
-    ctx.fillStyle = hot ? '#ffffff' : '#ffd27a';
-    ctx.fillText(String(goals), nx, gy - 12);
-    ctx.shadowBlur = 0;
-
     main.tex.needsUpdate = true;
   }
 
@@ -161,7 +146,6 @@ export function buildScreens(scene) {
   function update(dt, camera) {
     blink += dt;
     const cursorOn = Math.floor(blink * 2.2) % 2 === 0;
-    if (flash > 0) flash = Math.max(0, flash - dt);
 
     // type the title, hold, then type it again
     seq.t += dt;
@@ -170,11 +154,9 @@ export function buildScreens(scene) {
     const n = Math.min(seq.i, MAIN_TITLE.length);
 
     if (portrait.complete && !baseReady) paintBase();
-    const key = `${n}|${cursorOn}|${goals}|${flash > 0 ? Math.floor(flash * 6) : -1}|${baseReady}`;
+    const key = `${n}|${cursorOn}|${baseReady}`;
     if (key !== last && inView(camera)) { last = key; draw(n, cursorOn); }
   }
 
-  function setGoals(g) { goals = g; flash = 2.4; }
-
-  return { update, setGoals };
+  return { update };
 }

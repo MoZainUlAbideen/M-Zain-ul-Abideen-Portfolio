@@ -153,12 +153,9 @@ const physics = new Physics(pods, {
   onGoal(goalSide, pos) {
     if (match.on) {
       if (!match.goal(goalSide)) return;
-      // the big screen shows your goals in the match
-      screens.setGoals(match.you);
     } else {
       goals++;
       ui.setScore(goals);
-      screens.setGoals(goals);
     }
     ui.goal(goalSide);
     fx.goal(pos, goalSide === 'orange' ? TEAM.orange : TEAM.blue);
@@ -176,12 +173,10 @@ const match = new Match({
   onStart() {
     if (ui.panelOpen) ui.close();
     keys.clear(); touch?.release();
-    screens.setGoals(0);
     ui.setPrompt(null);
     canvas.focus();
   },
   onStop() {
-    screens.setGoals(goals);
     canvas.focus();
   },
 });

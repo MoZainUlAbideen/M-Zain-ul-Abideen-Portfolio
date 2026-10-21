@@ -317,6 +317,21 @@ export const PODIUMS = [
           ],
         },
         {
+          title: 'Dafa',
+          href: 'https://dafa-ten.vercel.app',
+          tagline: 'Pakistan’s law, section by section, in English, Urdu or Roman Urdu.',
+          points: [
+            'Font-aware PDF extraction of the Constitution (328 articles) and Penal Code (639 sections) with zero numbering gaps, each section joined to its CrPC Schedule II row: bailable, cognizable, trial court.',
+            'BM25 with a Roman Urdu glossary and an LLM rewrite lifted hit@5 from 0.76 to 0.97 on dev questions (0.58 on held-out, published); “dafa 302” opens instantly with no model call.',
+            'A deterministic checker verifies every citation, quote and “N years” against the official text, with one repair round; 24 bugs logged, each with a regression test.',
+          ],
+          tech: ['Python', 'PyMuPDF', 'BM25', 'FastAPI'],
+          links: [
+            { label: 'Live', href: 'https://dafa-ten.vercel.app' },
+            { label: 'GitHub', href: `${GH}/Dafa` },
+          ],
+        },
+        {
           title: 'Job Assistant',
           href: `${GH}/Job-Assistant-An-AI-Resume-Fit-Dashboard-Built-From-Scratch-FastAPI-Groq-RAG`,
           tagline: 'Chrome extension + dashboard that scores how well your resume fits a job.',
