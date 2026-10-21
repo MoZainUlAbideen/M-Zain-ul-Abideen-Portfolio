@@ -3,6 +3,7 @@
 //   · car engine (pitch follows speed) and the boost whoosh
 //   · goal: crowd roar + goal horn
 //   · car/ball hits
+//   · match: countdown beeps and the referee's whistle
 // ─────────────────────────────────────────────────────────────
 
 export class ArenaAudio {
@@ -182,6 +183,40 @@ export class ArenaAudio {
       const o = ctx.createOscillator();
       o.type = 'sawtooth'; o.frequency.value = f;
       o.connect(hl); o.start(t); o.stop(t + 2);
+    }
+  }
+
+  // countdown beep: short, higher on "GO"
+  beep(go = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = go ? 880 : 520;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (go ? 0.45 : 0.18));
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + 0.5);
+  }
+
+  // referee's whistle (warbling high tone); `long` for full time
+  whistle(long = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const blasts = long ? [[0, 0.32], [0.42, 0.32], [0.84, 0.9]] : [[0, 0.5]];
+    for (const [at, len] of blasts) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = 2900;
+      const trill = ctx.createOscillator(), td = ctx.createGain();
+      trill.frequency.value = 38; td.gain.value = 140;
+      trill.connect(td).connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.1, t + at + 0.02);
+      g.gain.setValueAtTime(0.1, t + at + len - 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+      o.connect(g).connect(this.master);
+      o.start(t + at); o.stop(t + at + len + 0.05);
+      trill.start(t + at); trill.stop(t + at + len + 0.05);
     }
   }
 }

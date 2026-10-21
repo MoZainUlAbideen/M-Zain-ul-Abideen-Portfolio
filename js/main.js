@@ -9,7 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SITE, PODIUMS } from './content.js';
 import { buildArena, buildBall, FIELD, TEAM } from './arena.js';
-import { buildCar } from './car.js';
+import { buildCar, RED_PAINT } from './car.js';
 import { buildPodiums, updatePodiums, REACH } from './podiums.js';
 import { Physics, SPAWN } from './physics.js';
 import { FX } from './fx.js';
@@ -20,6 +20,8 @@ import { mergeStatic } from './merge.js';
 import { buildTouchControls, isTouch } from './touch.js';
 import { buildScreens } from './screens.js';
 import { Academy } from './academy/academy.js';
+import { Bot } from './bot.js';
+import { Match } from './match.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 
@@ -102,6 +104,11 @@ function watchFrameRate(dt, active) {
 }
 const car = buildCar();
 scene.add(car.group);
+// the red bot: only on the pitch during a match
+const botCar = buildCar(RED_PAINT);
+botCar.group.visible = false;
+scene.add(botCar.group);
+const bot = new Bot();
 const { ball, marker } = buildBall();
 scene.add(ball, marker);
 const pods = buildPodiums(scene, PODIUMS);
@@ -145,17 +152,40 @@ let goals = 0;
 let shake = 0;
 const physics = new Physics(pods, {
   onGoal(goalSide, pos) {
-    goals++;
-    ui.setScore(goals);
-    screens.setGoals(goals);
+    if (match.on) {
+      if (!match.goal(goalSide)) return;
+      // the big screen shows your goals in the match
+      screens.setGoals(match.you);
+    } else {
+      goals++;
+      ui.setScore(goals);
+      screens.setGoals(goals);
+    }
     ui.goal(goalSide);
     fx.goal(pos, goalSide === 'orange' ? TEAM.orange : TEAM.blue);
     audio.goal();
     shake = 0.8;
   },
   onHit(kind, strength) {
-    if (kind === 'car') shake = Math.max(shake, Math.min(0.25, strength / 120));
-    if (strength > 4) audio.hit(kind === 'car' ? strength : strength * 0.5);
+    if (kind === 'car' || kind === 'bump') shake = Math.max(shake, Math.min(0.25, strength / 120));
+    if (strength > 4) audio.hit(kind === 'car' || kind === 'bot' || kind === 'bump' ? strength : strength * 0.5);
+  },
+});
+
+const match = new Match({
+  physics, bot, audio,
+  onStart() {
+    botCar.group.visible = true;
+    if (ui.panelOpen) ui.close();
+    keys.clear(); touch?.release();
+    screens.setGoals(0);
+    ui.setPrompt(null);
+    canvas.focus();
+  },
+  onStop() {
+    botCar.group.visible = false;
+    screens.setGoals(goals);
+    canvas.focus();
   },
 });
 
@@ -172,7 +202,8 @@ addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'KeyE') openNear();
   if (e.code === 'KeyC') toggleBallCam();
-  if (e.code === 'KeyR') resetPlay();
+  if (e.code === 'KeyR' && !match.on) resetPlay(); // no teleporting mid-match
+  if (e.code === 'KeyN') match.toggle();
   if (e.code === 'KeyM') { audio.toggleMute(); showMute(); }
   if (e.code === 'KeyF') toggleFullscreen();
   if (e.code === "KeyH") document.getElementById('help').classList.toggle('is-hidden');
@@ -181,7 +212,7 @@ addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => { keys.clear(); touch?.release(); });
 
 function openNear() {
-  if (!nearPod || state !== 'play' || ui.panelOpen || academy.isOpen) return;
+  if (!nearPod || state !== 'play' || ui.panelOpen || academy.isOpen || match.on) return;
   keys.clear(); touch?.release();
   if (nearPod.data.id === 'academy') { ui.setPrompt(null); academy.open(); } else ui.open(nearPod.data);
 }
@@ -291,9 +322,26 @@ function frame() {
   const dt = Math.min(rawDt, 0.05);
   const t = clock.elapsedTime;
   const busy = ui.panelOpen || academy.isOpen;
-  const input = state === 'play' && !busy ? readInput() : IDLE;
+  if (state === 'play') match.update(dt);
+  if (match.phase === 'countdown') physics.resetBall(); // the ball hangs at centre until GO, then drops
+  const input = state === 'play' && !busy && !match.frozen ? readInput() : IDLE;
   if (touch && busy !== touchBusy) { touchBusy = busy; touch.el.classList.toggle('is-hidden', busy); if (busy) touch.release(); }
-  physics.step(dt, input);
+  physics.step(dt, input, match.botLive ? (p) => bot.input(p) : null);
+
+  // bot visuals
+  if (botCar.group.visible) {
+    const k = physics.bot;
+    botCar.group.position.copy(physics.render.botPos);
+    botCar.group.rotation.y = physics.render.botYaw;
+    botCar.group.rotation.x = k.onGround ? 0 : THREE.MathUtils.clamp(-k.vel.y * 0.012, -0.2, 0.2);
+    for (const w of botCar.wheels) {
+      w.spin.rotation.x = k.roll;
+      if (w.front) w.pivot.rotation.y = k.steer * 0.4;
+    }
+    for (const r of botCar.rollers) r.rotation.y += k.speed * dt * 0.6;
+    botCar.flames.visible = k.boosting;
+    if (k.boosting) { botCar.flames.scale.set(1, 1, 0.8 + Math.random() * 0.5); botCar.group.updateMatrixWorld(); fx.boost(botCar.group, dt); }
+  }
 
   // car visuals
   const c = physics.car;
@@ -330,7 +378,7 @@ function frame() {
     const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z);
     if (d < best) { best = d; nearPod = p; }
   }
-  if (state === 'play' && !busy) ui.setPrompt(nearPod?.data);
+  if (state === 'play' && !busy) ui.setPrompt(match.on ? null : nearPod?.data);
   updatePodiums(pods, t, dt, nearPod?.data.id);
   dugout.update(t, nearPod?.data.id === 'academy' ? 1 : 0);
   if (!academy.isOpen) screens.update(dt, camera);
@@ -345,4 +393,4 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
-if (DEBUG) Object.assign(window, { quality: () => quality, physics, camera, scene, renderer, composer, bloom, ui, pods, audio, academy, dugout, screens, THREE, setState: (s) => (state = s), keys });
+if (DEBUG) Object.assign(window, { match, bot, botCar, quality: () => quality, physics, camera, scene, renderer, composer, bloom, ui, pods, audio, academy, dugout, screens, THREE, setState: (s) => (state = s), keys });

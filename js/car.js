@@ -85,20 +85,24 @@ function beyondTexture(bg) {
   });
 }
 
-export function buildCar() {
+// The default look is Zain's car. Pass a `paint` to make another one (the red bot).
+const ZAIN_PAINT = { body: 0x0f0d66, bodyGlow: 0x06052e, canopy: 0x0e6474, canopyGlow: 0x053a46, rim: 0xff5230, rimGlow: 0x3a0800, helmet: 0xff6a1f, glow: 0x3346ff };
+export const RED_PAINT = { body: 0x8c0a14, bodyGlow: 0x3a0207, canopy: 0x3a1418, canopyGlow: 0x220508, rim: 0xe9edf5, rimGlow: 0x222222, helmet: 0x1d1f26, glow: 0xff2a2a };
+
+export function buildCar(paint = ZAIN_PAINT) {
   const car = new THREE.Group();
   car.name = 'car';
 
   // ── materials ──
   const body = new THREE.MeshPhysicalMaterial({
-    color: 0x0f0d66, emissive: 0x06052e, emissiveIntensity: 0.3, // deep royal blue, like the real toy
+    color: paint.body, emissive: paint.bodyGlow, emissiveIntensity: 0.3, // deep royal blue, like the real toy
     roughness: 0.25, metalness: 0.05, clearcoat: 0.35, clearcoatRoughness: 0.2,
     envMapIntensity: 0.25, // less mirror-like sheen, so the deep blue reads like the real plastic
     transparent: true, opacity: 0.9,
   });
   // dark tinted glass you can see the driver through
   const canopyMat = new THREE.MeshPhysicalMaterial({
-    color: 0x0e6474, emissive: 0x053a46, emissiveIntensity: 0.55,
+    color: paint.canopy, emissive: paint.canopyGlow, emissiveIntensity: 0.55,
     roughness: 0.04, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9,
     transparent: true, opacity: 0.58, depthWrite: false, side: THREE.DoubleSide,
   });
@@ -107,7 +111,7 @@ export function buildCar() {
   const silver = new THREE.MeshStandardMaterial({ color: 0xd4d8e0, roughness: 0.25, metalness: 0.85 });
   const rollerRing = new THREE.MeshStandardMaterial({ color: 0x8a8e98, roughness: 0.35, metalness: 0.8 });
   const tyre = new THREE.MeshStandardMaterial({ color: 0x151518, roughness: 0.85 });
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0xff5230, roughness: 0.4, metalness: 0.1, emissive: 0x3a0800, emissiveIntensity: 0.4 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: paint.rim, roughness: 0.4, metalness: 0.1, emissive: paint.rimGlow, emissiveIntensity: 0.4 });
   const white = new THREE.MeshStandardMaterial({ color: 0xf2f0ff, roughness: 0.4 });
   const flameMat = new THREE.MeshStandardMaterial({
     map: flameTexture(), transparent: true, alphaTest: 0.35, roughness: 0.4,
@@ -181,7 +185,7 @@ export function buildCar() {
   const driver = new THREE.Group();
   driver.position.set(0, 1.02, -0.15);
   const suit = new THREE.MeshStandardMaterial({ color: 0xf2f2f5, roughness: 0.6 });
-  const helmet = new THREE.MeshStandardMaterial({ color: 0xff6a1f, roughness: 0.35, metalness: 0.2 });
+  const helmet = new THREE.MeshStandardMaterial({ color: paint.helmet, roughness: 0.35, metalness: 0.2 });
   const visor = new THREE.MeshStandardMaterial({ color: 0x0a0d18, roughness: 0.1, metalness: 0.6 });
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.18, 4, 10), suit);
   torso.position.y = 0.2;
@@ -346,7 +350,7 @@ export function buildCar() {
   car.add(flames);
 
   // soft under-glow so the car pops at night
-  const glow = new THREE.PointLight(0x3346ff, 3, 7, 2);
+  const glow = new THREE.PointLight(paint.glow, 3, 7, 2);
   glow.position.set(0, 0.4, 0);
   car.add(glow);
 

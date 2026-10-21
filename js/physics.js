@@ -16,7 +16,11 @@ export const CFG = {
   hitRestitution: 0.55, hitKick: 0.4,
 };
 
-export const SPAWN = { car: new THREE.Vector3(-24, 0, 0), yaw: Math.PI / 2, ball: new THREE.Vector3(0, 6, 0) };
+export const SPAWN = {
+  car: new THREE.Vector3(-24, 0, 0), yaw: Math.PI / 2, ball: new THREE.Vector3(0, 6, 0),
+  // the red bot kicks off from the other half, facing the player
+  bot: new THREE.Vector3(24, 0, 0), botYaw: -Math.PI / 2,
+};
 
 const H = 1 / 120;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), n = new THREE.Vector3();
@@ -26,18 +30,24 @@ export class Physics {
     this.pods = pods.map((p) => ({ x: p.x, z: p.z }));
     this.onGoal = onGoal || (() => {});
     this.onHit = onHit || (() => {});
-    this.car = {
-      pos: SPAWN.car.clone(), vel: new THREE.Vector3(), yaw: SPAWN.yaw,
+    const newCar = (pos, yaw) => ({
+      pos: pos.clone(), vel: new THREE.Vector3(), yaw,
       steer: 0, onGround: true, boost: 100, boosting: false, jumpHeld: false, roll: 0, speed: 0,
-    };
+      hitCooldown: 0,
+    });
+    this.car = newCar(SPAWN.car, SPAWN.yaw);
+    this.bot = newCar(SPAWN.bot, SPAWN.botYaw);
+    this.cars = [this.car, this.bot];
+    this.botOn = false;   // the bot only takes the pitch during a match
+    this.autoReset = true; // free play: the ball respawns 3 s after a goal (a match handles its own kickoffs)
     this.ball = { pos: SPAWN.ball.clone(), vel: new THREE.Vector3(), quat: new THREE.Quaternion() };
     this.acc = 0;
-    this.prev = { carPos: new THREE.Vector3(), carYaw: 0, ballPos: new THREE.Vector3(), ballQuat: new THREE.Quaternion() };
-    this.render = { carPos: new THREE.Vector3(), carYaw: 0, ballPos: new THREE.Vector3(), ballQuat: new THREE.Quaternion() };
+    const pose = () => ({ carPos: new THREE.Vector3(), carYaw: 0, botPos: new THREE.Vector3(), botYaw: 0, ballPos: new THREE.Vector3(), ballQuat: new THREE.Quaternion() });
+    this.prev = pose();
+    this.render = pose();
     this.snapshot(); this.interpolate();
     this.goalLock = false;
     this.resetTimer = 0;
-    this.hitCooldown = 0;
   }
 
   resetBall() {
@@ -53,42 +63,55 @@ export class Physics {
     this.prev.carPos.copy(c.pos); this.prev.carYaw = c.yaw;
   }
 
+  resetBot() {
+    const c = this.bot;
+    c.pos.copy(SPAWN.bot); c.vel.set(0, 0, 0); c.yaw = SPAWN.botYaw; c.boost = 100;
+    this.prev.botPos.copy(c.pos); this.prev.botYaw = c.yaw;
+  }
+
+  // kickoff: everything back to its spot
+  resetAll() { this.resetCar(); this.resetBot(); this.resetBall(); this.resetTimer = 0; }
+
   // Positions to DRAW this frame: blended between the last two physics steps.
   // Without this, a 60/144 Hz screen sees 0, 1 or 2+ steps per frame and the
   // car jitters slightly even when the frame rate is fine.
   snapshot() {
     this.prev.carPos.copy(this.car.pos); this.prev.carYaw = this.car.yaw;
+    this.prev.botPos.copy(this.bot.pos); this.prev.botYaw = this.bot.yaw;
     this.prev.ballPos.copy(this.ball.pos); this.prev.ballQuat.copy(this.ball.quat);
   }
 
   interpolate() {
     const a = this.acc / H, p = this.prev, r = this.render;
+    const yaw = (from, to) => { const d = to - from; return from + Math.atan2(Math.sin(d), Math.cos(d)) * a; };
     r.carPos.lerpVectors(p.carPos, this.car.pos, a);
-    let d = this.car.yaw - p.carYaw;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    r.carYaw = p.carYaw + d * a;
+    r.carYaw = yaw(p.carYaw, this.car.yaw);
+    r.botPos.lerpVectors(p.botPos, this.bot.pos, a);
+    r.botYaw = yaw(p.botYaw, this.bot.yaw);
     r.ballPos.lerpVectors(p.ballPos, this.ball.pos, a);
     r.ballQuat.slerpQuaternions(p.ballQuat, this.ball.quat, a);
   }
 
-  step(dt, input) {
+  // botInput: a function called every physics step (so the bot reacts at 120 Hz), or null when parked
+  step(dt, input, botInput = null) {
     this.acc += Math.min(dt, 0.1);
     while (this.acc >= H) {
       this.snapshot();
-      this.stepCar(input);
+      this.stepCar(this.car, input);
+      if (this.botOn) this.stepCar(this.bot, botInput ? botInput(this) : IDLE);
       this.stepBall();
-      this.collideCarBall();
+      this.collideCarBall(this.car);
+      if (this.botOn) { this.collideCarBall(this.bot); this.collideCars(); }
       this.acc -= H;
     }
     this.interpolate();
-    if (this.resetTimer > 0) {
+    if (this.autoReset && this.resetTimer > 0) {
       this.resetTimer -= dt;
       if (this.resetTimer <= 0) this.resetBall();
     }
   }
 
-  stepCar(inp) {
-    const c = this.car;
+  stepCar(c, inp) {
     c.steer += (inp.steer - c.steer) * Math.min(1, H * 10);
     let fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
     let vF = c.vel.x * fx + c.vel.z * fz;
@@ -135,15 +158,15 @@ export class Physics {
     c.pos.addScaledVector(c.vel, H);
     if (c.pos.y <= 0) { c.pos.y = 0; if (c.vel.y < 0) c.vel.y = 0; c.onGround = true; }
 
-    this.carWalls();
-    this.carPodiums();
+    this.carWalls(c);
+    this.carPodiums(c);
 
     c.speed = c.vel.x * Math.sin(c.yaw) + c.vel.z * Math.cos(c.yaw);
     c.roll += (c.speed * H) / CAR_DIMS.wheelR;
   }
 
-  carWalls() {
-    const c = this.car, p = c.pos, v = c.vel;
+  carWalls(c) {
+    const p = c.pos, v = c.vel;
     const { halfX, halfZ, goalHalfW, goalH, goalDepth } = FIELD;
     const cr = 1.9;
     if (Math.abs(p.z) > halfZ - cr) {
@@ -166,8 +189,8 @@ export class Physics {
     }
   }
 
-  carPodiums() {
-    const p = this.car.pos, v = this.car.vel;
+  carPodiums(c) {
+    const p = c.pos, v = c.vel;
     const R = PODIUM_R + 1.5;
     for (const pod of this.pods) {
       const dx = p.x - pod.x, dz = p.z - pod.z;
@@ -293,9 +316,9 @@ export class Physics {
     }
   }
 
-  collideCarBall() {
-    this.hitCooldown -= H;
-    const c = this.car, b = this.ball, r = FIELD.ballR;
+  collideCarBall(c) {
+    c.hitCooldown -= H;
+    const b = this.ball, r = FIELD.ballR;
     const { half, centerY } = CAR_DIMS;
     const cos = Math.cos(c.yaw), sin = Math.sin(c.yaw);
     // ball centre in car-local space
@@ -319,7 +342,29 @@ export class Physics {
       b.vel.addScaledVector(n, push * CFG.hitKick);
       b.vel.y += push * 0.18;
       c.vel.addScaledVector(n, vn * 0.06);
-      if (this.hitCooldown <= 0) { this.onHit('car', -vn); this.hitCooldown = 0.15; }
+      if (c.hitCooldown <= 0) { this.onHit(c === this.car ? 'car' : 'bot', -vn); c.hitCooldown = 0.15; }
+      c.lastTouch = performance.now();
+    }
+  }
+
+  // the two cars bump off each other (treated as two upright cylinders)
+  collideCars() {
+    const a = this.car, b = this.bot;
+    const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
+    const d = Math.hypot(dx, dz), R = 3.6;
+    if (d >= R || Math.abs(a.pos.y - b.pos.y) > 1.6) return;
+    const nx = d > 1e-5 ? dx / d : 1, nz = d > 1e-5 ? dz / d : 0;
+    const push = (R - d) / 2;
+    a.pos.x -= nx * push; a.pos.z -= nz * push;
+    b.pos.x += nx * push; b.pos.z += nz * push;
+    const vn = (b.vel.x - a.vel.x) * nx + (b.vel.z - a.vel.z) * nz;
+    if (vn < 0) {
+      const j = -(1 + 0.4) * vn / 2;
+      a.vel.x -= nx * j; a.vel.z -= nz * j;
+      b.vel.x += nx * j; b.vel.z += nz * j;
+      if (j > 3) this.onHit('bump', j * 2);
     }
   }
 }
+
+const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };

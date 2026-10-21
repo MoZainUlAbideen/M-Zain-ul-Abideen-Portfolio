@@ -61,6 +61,7 @@
           <li><span class="toolkit__keys"><kbd>C</kbd></span>Ball cam</li>
           <li><span class="toolkit__keys"><kbd>M</kbd></span>Sound on/off</li>
           <li><span class="toolkit__keys"><kbd>F</kbd></span>Full screen</li>
+          <li><span class="toolkit__keys"><kbd>N</kbd></span>1:30 match vs bot</li>
         </ul>
         <ul class="toolkit__list toolkit__list--touch">
           <li><span class="toolkit__keys"><kbd>Joystick</kbd></span>Drive &amp; steer</li>
@@ -97,6 +98,30 @@
     <div class="hud-btns">
       <button id="fullscreen" class="mute" type="button" aria-pressed="false"><span>Full screen</span><kbd>F</kbd></button>
       <button id="mute" class="mute" type="button" aria-pressed="false"><span>Sound on</span><kbd>M</kbd></button>
+    </div>
+
+    <!-- match: start button, scoreboard, countdown, result -->
+    <button id="match-btn" class="match-btn" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+      <span>Start match</span><small>1:30 vs bot</small><kbd>N</kbd>
+    </button>
+    <div id="scoreboard" class="scoreboard" hidden aria-live="polite">
+      <div class="scoreboard__team scoreboard__team--you"><span>You</span><b id="score-you">0</b></div>
+      <div class="scoreboard__clock"><b id="match-clock">1:30</b><small id="match-note"></small></div>
+      <div class="scoreboard__team scoreboard__team--bot"><b id="score-bot">0</b><span>Bot</span></div>
+    </div>
+    <div id="countdown" class="countdown" hidden><span></span></div>
+    <div id="result" class="result" hidden role="dialog" aria-labelledby="result-title">
+      <div class="result__card">
+        <p class="result__kicker">Full time</p>
+        <h2 id="result-title" class="result__title"></h2>
+        <p id="result-score" class="result__score"></p>
+        <p id="result-note" class="result__note"></p>
+        <div class="result__btns">
+          <button id="result-again" class="result__btn result__btn--main" type="button">Play again</button>
+          <button id="result-close" class="result__btn" type="button">Keep exploring</button>
+        </div>
+      </div>
     </div>
 
     <div id="prompt" class="prompt" hidden role="status">

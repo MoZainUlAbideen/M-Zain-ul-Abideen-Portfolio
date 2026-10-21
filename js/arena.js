@@ -14,7 +14,8 @@ export const FIELD = {
   ballR: 2,
   cornerGap: 4,   // glass is left open this far from each corner; the corner podiums sit in the gap
   // podiums that sit ON a touchline, half in / half out (side: +1 = bottom, -1 = top)
-  touchPods: [{ x: -19, side: 1 }, { x: 19, side: 1 }], // Vision and Aspiration
+  // bottom: Vision, Who Am I, Aspiration · top: Life Uncoded (mirrors the dugout on the other half)
+  touchPods: [{ x: -19, side: 1 }, { x: 0, side: 1 }, { x: 19, side: 1 }, { x: -26, side: -1 }],
 };
 
 // Dugout ("My Academy") behind the top touchline
@@ -284,7 +285,7 @@ export function buildArena(scene) {
   }
   // half-circle alcoves behind touchline podiums
   for (const p of FIELD.touchPods) {
-    const mat = p.x < 0 ? blueN : orangeN;
+    const mat = p.x < 0 ? blueN : p.x > 0 ? orangeN : whiteN; // the halfway one is neutral
     const a = new THREE.Group();
     a.position.set(p.x, 0, p.side * halfZ);
     a.scale.set(1, 1, p.side); // built for the bottom touchline (+z is outside), mirrored for the top
@@ -449,9 +450,9 @@ export function buildArena(scene) {
     }
   };
   const longLen = (halfX - FIELD.cornerGap - 1.5) * 2;
-  addStand(longLen, true, -1, halfZ + 1, [[DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1]], 2);
-  const tpGaps = FIELD.touchPods.filter((p) => p.side === 1).map((p) => [p.x - FIELD.cornerGap - 1.5, p.x + FIELD.cornerGap + 1.5]);
-  addStand(longLen, true, 1, halfZ + 1, tpGaps, 2);
+  const tpGaps = (side) => FIELD.touchPods.filter((p) => p.side === side).map((p) => [p.x - FIELD.cornerGap - 1.5, p.x + FIELD.cornerGap + 1.5]);
+  addStand(longLen, true, -1, halfZ + 1, [[DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1], ...tpGaps(-1)], 2);
+  addStand(longLen, true, 1, halfZ + 1, tpGaps(1), 2);
   addStand(halfZ * 2 - 4, false, -1, halfX + goalDepth + 2);
   addStand(halfZ * 2 - 4, false, 1, halfX + goalDepth + 2);
 

@@ -816,3 +816,107 @@ kbd {
   .compare__tag { top: 8px; padding: 4px 8px; font-size: 9px; }
   .compare__tag--l { left: 8px; } .compare__tag--r { right: 8px; }
 }
+
+/* ───────── Match vs bot ───────── */
+:root { --red: #ff3347; --gold: #ffbf47; }
+.match-btn {
+  pointer-events: auto;
+  position: absolute; top: 20px; left: 20px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px 10px 12px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(100deg, rgba(47, 123, 255, .9), rgba(255, 51, 71, .9));
+  border: 1px solid rgba(255, 255, 255, .35); color: #fff;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .4), 0 0 24px rgba(255, 51, 71, .25);
+  font: italic 700 15px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase;
+  transition: transform .15s, filter .15s;
+}
+.match-btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+.match-btn svg { width: 18px; height: 18px; }
+.match-btn small { font: 600 11px/1 var(--font-display); letter-spacing: .06em; opacity: .85; text-transform: none; font-style: normal; }
+.match-btn kbd { height: 20px; min-width: 20px; font-size: 10px; border-color: rgba(255, 255, 255, .5); color: #fff; }
+.match-btn.is-live { background: var(--glass-strong); border-color: var(--line); box-shadow: none; color: var(--ink-soft); font-size: 12px; padding: 8px 12px; }
+.match-btn.is-live small { display: none; }
+
+.scoreboard {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: stretch;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .5));
+}
+.scoreboard__team {
+  display: flex; align-items: center; gap: 12px;
+  height: 52px; padding: 0 16px;
+  font: italic 700 15px/1 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: #fff;
+}
+.scoreboard__team b { font-size: 34px; letter-spacing: 0; min-width: 26px; text-align: center; }
+.scoreboard__team b.is-bump { animation: bump .6s cubic-bezier(.2, .9, .2, 1.4); }
+.scoreboard__team--you { background: linear-gradient(90deg, #1f5fe0, var(--blue)); clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%); padding-left: 24px; }
+.scoreboard__team--bot { background: linear-gradient(90deg, var(--red), #c81d33); clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); padding-right: 24px; }
+.scoreboard__clock {
+  display: grid; place-items: center; align-content: center; gap: 3px;
+  min-width: 96px; padding: 0 12px;
+  background: var(--glass-strong); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.scoreboard__clock b { font: 700 26px/1 var(--font-display); color: #fff; font-variant-numeric: tabular-nums; }
+.scoreboard__clock small { font: 700 9px/1 var(--font-display); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); }
+.scoreboard__clock small:empty { display: none; }
+.scoreboard.is-low .scoreboard__clock b { color: var(--red); }
+.scoreboard.is-golden .scoreboard__clock { background: linear-gradient(180deg, rgba(60, 42, 6, .95), rgba(30, 20, 2, .95)); border-color: var(--gold); }
+.scoreboard.is-golden .scoreboard__clock b, .scoreboard.is-golden .scoreboard__clock small { color: var(--gold); }
+
+.countdown { position: absolute; inset: 0; display: grid; place-items: center; }
+.countdown span {
+  font: italic 700 clamp(64px, 12vw, 150px)/1 var(--font-display); color: #fff;
+  -webkit-text-stroke: 3px var(--cc, var(--blue)); text-shadow: 0 0 40px var(--cc, var(--blue));
+  text-align: center; padding: 0 16px;
+}
+.countdown span.is-tick { animation: tick .9s cubic-bezier(.2, .9, .2, 1) forwards; }
+.countdown--small span { font-size: clamp(40px, 7vw, 90px); }
+@keyframes tick { 0% { opacity: 0; transform: scale(1.8) skewX(-8deg); } 20% { opacity: 1; transform: scale(1) skewX(-8deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: scale(.9) skewX(-8deg); } }
+
+.result { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgba(4, 6, 20, .55); pointer-events: auto; animation: fade .3s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.result__card {
+  width: min(420px, 100%); padding: 26px 26px 22px; text-align: center;
+  background: linear-gradient(170deg, rgba(14, 19, 44, .97), rgba(7, 10, 26, .98));
+  border: 1px solid var(--rc, var(--line)); border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5), 0 0 50px color-mix(in srgb, var(--rc, #fff) 30%, transparent);
+}
+.result--win { --rc: var(--blue); }
+.result--loss { --rc: var(--red); }
+.result__kicker { margin: 0 0 6px; font: 700 12px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-soft); }
+.result__title { margin: 0; font: italic 700 44px/1.05 var(--font-display); color: #fff; text-shadow: 0 0 24px var(--rc, transparent); }
+.result__score { margin: 12px 0 0; font: 700 30px/1 var(--font-display); color: #fff; font-variant-numeric: tabular-nums; }
+.result__score .y { color: #7fb3ff; } .result__score .b { color: #ff7a88; }
+.result__note { margin: 8px 0 0; font-size: 14px; color: var(--ink-soft); }
+.result__note:empty { display: none; }
+.result__btns { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+.result__btn {
+  padding: 11px 18px; border-radius: 10px; cursor: pointer;
+  background: var(--glass); border: 1px solid var(--line); color: var(--ink);
+  font: italic 700 14px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase;
+}
+.result__btn--main { background: linear-gradient(100deg, var(--blue), var(--red)); border-color: transparent; color: #fff; }
+.result__btn:hover { filter: brightness(1.12); }
+
+/* phones: smaller pieces, clear of the boost meter and buttons */
+/* phones: the Ball cam / Reset buttons own the top-left corner, so the match button sits just under them */
+.is-touch .match-btn { top: calc(max(16px, env(safe-area-inset-top)) + 44px); left: max(18px, env(safe-area-inset-left)); padding: 8px 12px 8px 10px; font-size: 12px; }
+.is-touch .match-btn kbd { display: none; }
+.is-touch .scoreboard { top: max(10px, env(safe-area-inset-top)); }
+.is-touch .scoreboard__team { height: 40px; padding: 0 10px; font-size: 11px; gap: 8px; }
+.is-touch .scoreboard__team--you { padding-left: 18px; }
+.is-touch .scoreboard__team--bot { padding-right: 18px; }
+.is-touch .scoreboard__team b { font-size: 24px; min-width: 18px; }
+.is-touch .scoreboard__clock { min-width: 70px; }
+.is-touch .scoreboard__clock b { font-size: 20px; }
+/* landscape phones keep the boost meter at the top centre: during a match it drops below the scoreboard */
+.is-touch .hud.is-match .boost { top: 58px; }
+@media (orientation: portrait) {
+  .is-touch .hud.is-match .boost { top: auto; }
+  .is-touch .hud.is-match .rotate-tip { display: none; }
+  .is-touch .match-btn small { display: none; }
+}
+@media (max-width: 720px) { .match-btn small { display: none; } }
+@media (orientation: portrait) {
+  .is-touch .scoreboard { top: 108px; }
+}

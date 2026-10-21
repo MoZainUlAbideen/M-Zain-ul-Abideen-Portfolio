@@ -30,7 +30,8 @@ const GH = 'https://github.com/MoZainUlAbideen';
 // plate: false hides the small label plate (the headline is used instead)
 export const PODIUMS = [
   {
-    id: 'about', kind: 'about', label: 'WHO AM I', headline: "ZAIN'S HQ", x: 0, z: 27, color: '#2de2ff',
+    // on the bottom touchline between Vision and Aspirations (the glass opens here, see FIELD.touchPods in arena.js)
+    id: 'about', kind: 'about', label: 'WHO AM I', headline: "ZAIN'S HQ", x: 0, z: 32, color: '#2de2ff',
     panel: {
       kicker: "Zain's HQ",
       title: 'Who am I',
@@ -75,8 +76,9 @@ export const PODIUMS = [
     },
   },
   {
+    // on the top touchline, opposite the dugout
     id: 'interests', kind: 'interests', label: 'LIFE UNCODED', headline: 'LIFE UNCODED', plate: false,
-    x: 0, z: -27, color: '#ff4fd8',
+    x: -26, z: -32, color: '#ff4fd8',
     panel: {
       kicker: 'Off the pitch',
       title: 'Life Uncoded',
