@@ -97,10 +97,10 @@ function canvasTex(w, h, draw) {
 
 // Tech-grid floor: glowing rounded tiles (blue half → orange half) with the
 
-// Rocket League-style pitch: dark mown grass, a faint chevron pattern, a network of thin
-// team-coloured lines on each half, translucent team-colour boxes in front of the goals,
+// Rocket League-style pitch: dark mown grass, a faint chevron pattern,
+// translucent team-colour boxes in front of the goals,
 // a light grey border along the touchlines and grey panels in the corners.
-// Returns { map, glow }: glow lights only the team lines a little (no neon floor).
+// Returns { map, glow }: glow lights only the team-colour markings a little (no neon floor).
 // The texture spans x = ±(halfX + goalDepth) and z = ±flatZ (the flat floor plus the goal mouths).
 const PITCH = { x0: -(FIELD.halfX + FIELD.goalDepth), x1: FIELD.halfX + FIELD.goalDepth, z0: -FIELD.flatZ, z1: FIELD.flatZ };
 function pitchTextures() {
@@ -135,34 +135,6 @@ function pitchTextures() {
     base.fillRect(rnd() * W, rnd() * Hh, 2, 2);
   }
 
-  // team line network: a jittered grid joined into big triangles, one colour per half
-  const lines = (x0, x1, col) => {
-    const pts = [], cols = 5, rows = 5;
-    for (let i = 0; i <= cols; i++) {
-      pts.push([]);
-      for (let j = 0; j <= rows; j++) {
-        const edgeX = i === 0 || i === cols, edgeZ = j === 0 || j === rows;
-        const x = x0 + ((x1 - x0) * i) / cols + (edgeX ? 0 : (rnd() - 0.5) * 6);
-        const z = -flatZ + (2 * flatZ * j) / rows + (edgeZ ? 0 : (rnd() - 0.5) * 6);
-        pts[i].push([x, z]);
-      }
-    }
-    for (const ctx of [base, glow]) {
-      ctx.save();
-      ctx.strokeStyle = `rgba(${col},${ctx === glow ? 0.32 : 0.5})`; ctx.lineWidth = 0.2 * S;
-      ctx.beginPath();
-      for (let i = 0; i <= cols; i++) for (let j = 0; j <= rows; j++) {
-        const [x, z] = pts[i][j];
-        if (i < cols) { ctx.moveTo(...P(x, z)); ctx.lineTo(...P(...pts[i + 1][j])); }
-        if (j < rows) { ctx.moveTo(...P(x, z)); ctx.lineTo(...P(...pts[i][j + 1])); }
-        if (i < cols && j < rows) { const d = (i + j) % 2 ? pts[i + 1][j + 1] : pts[i][j]; const e = (i + j) % 2 ? pts[i][j] : pts[i + 1][j + 1]; ctx.moveTo(...P(...d)); ctx.lineTo(...P(...e)); }
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-  };
-  lines(-flatX, -6, BLUE);
-  lines(6, flatX, ORANGE);
 
   // in front of each goal: a translucent team-colour box with a darker band, Rocket League style
   for (const [s, col] of [[-1, BLUE], [1, ORANGE]]) {
