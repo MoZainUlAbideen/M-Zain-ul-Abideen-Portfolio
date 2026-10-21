@@ -17,7 +17,7 @@
 
 export const SITE = {
   name: 'Zain',
-  role: 'AI Full Stack Engineer',
+  role: 'AI Engineer',
   splashIntro:
     "Hop in my car, knock the ball around, and drive up to the glowing podiums to see who I am, what I've built and what I've learned.",
 };
@@ -35,7 +35,7 @@ export const PODIUMS = [
     panel: {
       kicker: "Zain's HQ",
       title: 'Who am I',
-      subtitle: 'Muhammad Zain-ul-Abideen · AI Full Stack Engineer · Islamabad, Pakistan',
+      subtitle: 'Muhammad Zain-ul-Abideen · AI Engineer · Islamabad, Pakistan',
       paragraphs: [
         'I ship production LLM applications: retrieval-augmented generation, multi-agent pipelines and eval harnesses on Python/FastAPI backends with Next.js frontends, backed by automated tests, CI/CD and observability.',
       ],
