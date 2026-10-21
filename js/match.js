@@ -43,7 +43,6 @@ export class Match {
     this.el.btn.querySelector('span').textContent = 'End match';
     this.el.note.textContent = '';
     this.el.you.textContent = '0'; this.el.botScore.textContent = '0';
-    this.physics.botOn = true;
     this.physics.autoReset = false;
     this.onStart?.();
     this.kickoff();
@@ -58,7 +57,6 @@ export class Match {
     this.el.hud.classList.remove('is-match');
     this.el.btn.classList.remove('is-live');
     this.el.btn.querySelector('span').textContent = 'Start match';
-    this.physics.botOn = false;
     this.physics.autoReset = true;
     this.physics.resetAll();
     this.onStop?.();

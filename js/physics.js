@@ -3,7 +3,7 @@
 //  Fixed 120 Hz steps so it behaves the same on every screen.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { FIELD } from './arena.js';
+import { FIELD, DOME, domeHeight } from './arena.js';
 import { CAR_DIMS } from './car.js';
 import { PODIUM_R, PODIUM_H } from './podiums.js';
 
@@ -17,9 +17,9 @@ export const CFG = {
 };
 
 export const SPAWN = {
-  car: new THREE.Vector3(-24, 0, 0), yaw: Math.PI / 2, ball: new THREE.Vector3(0, 6, 0),
-  // the red bot kicks off from the other half, facing the player
-  bot: new THREE.Vector3(24, 0, 0), botYaw: -Math.PI / 2,
+  car: new THREE.Vector3(-30, 0, 0), yaw: Math.PI / 2, ball: new THREE.Vector3(0, FIELD.ballR, 0), // resting on the centre spot
+  // the red bot kicks off from the other half, facing the player (and parks there outside a match)
+  bot: new THREE.Vector3(30, 0, 0), botYaw: -Math.PI / 2,
 };
 
 const H = 1 / 120;
@@ -38,7 +38,7 @@ export class Physics {
     this.car = newCar(SPAWN.car, SPAWN.yaw);
     this.bot = newCar(SPAWN.bot, SPAWN.botYaw);
     this.cars = [this.car, this.bot];
-    this.botOn = false;   // the bot only takes the pitch during a match
+    this.botOn = true;    // the bot is always on the pitch: parked until a match starts
     this.autoReset = true; // free play: the ball respawns 3 s after a goal (a match handles its own kickoffs)
     this.ball = { pos: SPAWN.ball.clone(), vel: new THREE.Vector3(), quat: new THREE.Quaternion() };
     this.acc = 0;
@@ -157,6 +157,9 @@ export class Physics {
 
     c.pos.addScaledVector(c.vel, H);
     if (c.pos.y <= 0) { c.pos.y = 0; if (c.vel.y < 0) c.vel.y = 0; c.onGround = true; }
+    // boosting up into the dome: stop at the roof
+    const roof = domeHeight(c.pos.x, c.pos.z) - 2;
+    if (c.pos.y > roof) { c.pos.y = roof; if (c.vel.y > 0) c.vel.y = 0; }
 
     this.carWalls(c);
     this.carPodiums(c);
@@ -221,8 +224,14 @@ export class Physics {
       const k = Math.exp(-CFG.ballRoll * H);
       v.x *= k; v.z *= k;
     }
-    // ceiling
-    if (p.y > 34 - r) { p.y = 34 - r; if (v.y > 0) v.y *= -CFG.ballWallBounce; }
+    // the dome roof: bounce off its curved inner surface
+    const roof = domeHeight(p.x, p.z) - r;
+    if (p.y > roof) {
+      p.y = roof;
+      n.set(p.x / DOME.ax ** 2, (p.y + r) / DOME.ay ** 2, p.z / DOME.az ** 2).normalize(); // outward normal
+      const vn = v.dot(n);
+      if (vn > 0) { v.addScaledVector(n, -(1 + CFG.ballWallBounce) * vn); this.onHit('wall', vn); }
+    }
 
     this.ballWalls();
     this.ballPosts();

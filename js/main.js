@@ -104,9 +104,8 @@ function watchFrameRate(dt, active) {
 }
 const car = buildCar();
 scene.add(car.group);
-// the red bot: only on the pitch during a match
+// the red bot: parked at its kickoff spot, drives only during a match
 const botCar = buildCar(RED_PAINT);
-botCar.group.visible = false;
 scene.add(botCar.group);
 const bot = new Bot();
 const { ball, marker } = buildBall();
@@ -175,7 +174,6 @@ const physics = new Physics(pods, {
 const match = new Match({
   physics, bot, audio,
   onStart() {
-    botCar.group.visible = true;
     if (ui.panelOpen) ui.close();
     keys.clear(); touch?.release();
     screens.setGoals(0);
@@ -183,7 +181,6 @@ const match = new Match({
     canvas.focus();
   },
   onStop() {
-    botCar.group.visible = false;
     screens.setGoals(goals);
     canvas.focus();
   },
@@ -217,7 +214,7 @@ function openNear() {
   if (nearPod.data.id === 'academy') { ui.setPrompt(null); academy.open(); } else ui.open(nearPod.data);
 }
 function toggleBallCam() { ballCam = !ballCam; ui.setBallCam(ballCam); touch?.el.querySelector('[data-act="cam"]').classList.toggle('is-on', ballCam); }
-function resetPlay() { physics.resetCar(); physics.resetBall(); }
+function resetPlay() { physics.resetCar(); physics.resetBall(); physics.resetBot(); }
 
 // the "Open ..." prompt is also a button (tap on phones, click on desktop)
 document.getElementById('prompt').addEventListener('click', openNear);
@@ -258,7 +255,7 @@ startBtn.addEventListener('click', () => {
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 const want = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3();
 let camYaw = SPAWN.yaw;
-camera.position.set(-24, 5, -9);
+camera.position.set(-30, 5, -9);
 
 function updateCamera(dt, t) {
   // follow the smoothed (interpolated) positions, not the raw physics ones
@@ -329,7 +326,7 @@ function frame() {
   physics.step(dt, input, match.botLive ? (p) => bot.input(p) : null);
 
   // bot visuals
-  if (botCar.group.visible) {
+  {
     const k = physics.bot;
     botCar.group.position.copy(physics.render.botPos);
     botCar.group.rotation.y = physics.render.botYaw;

@@ -4,15 +4,15 @@
 //
 //  Map of the pitch, seen from above:
 //
-//        top  (z = -32)
+//        top  (z = -40)
 //    ┌──────────────┬──────────────┐
 //    │ STACK    LIFE UNCODED   CERTS │
-//  B │                             │ O    x runs left (-50) → right (+50)
-//  L ▌goal         (o)        goal ▐ R    z runs top (-32) → bottom (+32)
+//  B │                             │ O    x runs left (-60) → right (+60)
+//  L ▌goal         (o)        goal ▐ R    z runs top (-40) → bottom (+40)
 //  U │                             │ A
-//  E │ EXPERIENCE VISION WHO AM I PROJECTS│ N
+//  E │ EXPERIENCE VISION WHO-AM-I ASPIRATIONS PROJECTS │ N
 //    └──────────────┴──────────────┘ G
-//        bottom (z = +32)            E
+//        bottom (z = +40)            E
 // ─────────────────────────────────────────────────────────────
 
 export const SITE = {
@@ -31,7 +31,7 @@ const GH = 'https://github.com/MoZainUlAbideen';
 export const PODIUMS = [
   {
     // on the bottom touchline between Vision and Aspirations (the glass opens here, see FIELD.touchPods in arena.js)
-    id: 'about', kind: 'about', label: 'WHO AM I', headline: "ZAIN'S HQ", x: 0, z: 32, color: '#2de2ff',
+    id: 'about', kind: 'about', label: 'WHO AM I', headline: "ZAIN'S HQ", x: 0, z: 40, color: '#2de2ff',
     panel: {
       kicker: "Zain's HQ",
       title: 'Who am I',
@@ -54,7 +54,7 @@ export const PODIUMS = [
   },
   {
     // on the bottom touchline, half in / half out (the glass opens here, see FIELD.touchPods in arena.js)
-    id: 'vision', kind: 'vision', label: 'VISION', x: -19, z: 32, color: '#60a5fa',
+    id: 'vision', kind: 'vision', label: 'VISION', x: -23, z: 40, color: '#60a5fa',
     panel: {
       kicker: 'Behind the build',
       title: 'Vision',
@@ -78,7 +78,7 @@ export const PODIUMS = [
   {
     // on the top touchline, opposite the dugout
     id: 'interests', kind: 'interests', label: 'LIFE UNCODED', headline: 'LIFE UNCODED', plate: false,
-    x: -26, z: -32, color: '#ff4fd8',
+    x: -31, z: -40, color: '#ff4fd8',
     panel: {
       kicker: 'Off the pitch',
       title: 'Life Uncoded',
@@ -160,7 +160,7 @@ export const PODIUMS = [
   },
   {
     // mirror of Vision on the bottom touchline, half in / half out (see FIELD.touchPods in arena.js)
-    id: 'aspiration', kind: 'aspiration', label: 'ASPIRATIONS', x: 19, z: 32, color: '#ff6b6b',
+    id: 'aspiration', kind: 'aspiration', label: 'ASPIRATIONS', x: 23, z: 40, color: '#ff6b6b',
     panel: {
       kicker: 'Always climbing',
       title: 'Aspirations',
@@ -192,7 +192,7 @@ export const PODIUMS = [
     },
   },
   {
-    id: 'experience', kind: 'experience', label: 'EXPERIENCE', x: -50, z: 32, color: '#4ade80',
+    id: 'experience', kind: 'experience', label: 'EXPERIENCE', x: -60, z: 40, color: '#4ade80',
     panel: {
       kicker: 'Career so far',
       title: 'Experience',
@@ -219,7 +219,7 @@ export const PODIUMS = [
     },
   },
   {
-    id: 'stack', kind: 'stack', label: 'STACK', x: -50, z: -32, color: '#a78bfa',
+    id: 'stack', kind: 'stack', label: 'STACK', x: -60, z: -40, color: '#a78bfa',
     panel: {
       lab: true, // terminal-style layout: grouped, colour-coded chips
       title: 'Stack',
@@ -236,7 +236,7 @@ export const PODIUMS = [
 
   // ── Projects: bottom-right corner ──
   {
-    id: 'projects', kind: 'projects', label: 'PROJECTS', x: 50, z: 32, color: '#ff8a1f',
+    id: 'projects', kind: 'projects', label: 'PROJECTS', x: 60, z: 40, color: '#ff8a1f',
     panel: {
       kicker: 'Highlight reel',
       title: 'Projects',
@@ -335,7 +335,7 @@ export const PODIUMS = [
 
   // ── Certifications: top-right corner ──
   {
-    id: 'certs', kind: 'certs', label: 'CERTIFICATIONS', x: 50, z: -32, color: '#ffd23f',
+    id: 'certs', kind: 'certs', label: 'CERTIFICATIONS', x: 60, z: -40, color: '#ffd23f',
     panel: {
       kicker: 'Trophy cabinet',
       title: 'Certifications',

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 //  The red bot: a simple Rocket League-style opponent.
-//  It attacks the blue goal (x = -50) and defends the orange one (x = +50).
+//  It attacks the blue goal (x = -60) and defends the orange one (x = +60).
 //  Idea: get on the far side of the ball from the goal it is attacking,
 //  then drive through the ball towards that goal. If it ends up on the
 //  wrong side, it swings round (never straight through the ball, which
@@ -14,8 +14,8 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };
 
 export class Bot {
-  // attack: -1 = scores in the blue goal (x = -50), +1 = the orange one. key: which car in Physics it drives
-  constructor({ think = 0.14, boostChance = 0.65, attack = -1, key = 'bot', kickoffDelay = 0.35 } = {}) {
+  // attack: -1 = scores in the blue goal (x = -60), +1 = the orange one. key: which car in Physics it drives
+  constructor({ think = 0.14, boostChance = 0.65, attack = -1, key = 'bot', kickoffDelay = 0.1 } = {}) {
     this.think = think;             // seconds between decisions (reaction time)
     this.boostChance = boostChance; // how often it uses boost when it could
     this.attack = attack;
@@ -29,7 +29,8 @@ export class Bot {
     this.nextThink = 0;
     this.target = { x: 0, z: 0 };
     this.shooting = false;
-    this.slow = 0;      // how long it has been stuck
+    this.slow = 0;      // time since the last stuck check
+    this.anchor = null; // where it was at that check
     this.unstick = 0;   // > 0 while backing out
     this.unstickSteer = 1;
     this.mayBoost = true;
@@ -52,8 +53,15 @@ export class Bot {
       this.unstick -= dt;
       return { throttle: -1, steer: this.unstickSteer, boost: false, jump: false };
     }
-    if (Math.abs(c.speed) < 2 && c.onGround) this.slow += dt; else this.slow = 0;
-    if (this.slow > 0.9) { this.slow = 0; this.unstick = 0.7; this.unstickSteer = Math.random() < 0.5 ? -1 : 1; }
+    // stuck = hardly moved in the last second while trying to drive (wedged on a net, wall or podium)
+    this.slow += dt;
+    if (!this.anchor) this.anchor = { x: c.pos.x, z: c.pos.z };
+    if (this.slow > 0.9) {
+      const moved = Math.hypot(c.pos.x - this.anchor.x, c.pos.z - this.anchor.z);
+      this.anchor = { x: c.pos.x, z: c.pos.z };
+      this.slow = 0;
+      if (moved < 2.5 && c.onGround) { this.unstick = 0.8; this.unstickSteer = Math.random() < 0.5 ? -1 : 1; return { throttle: -1, steer: this.unstickSteer, boost: false, jump: false }; }
+    }
 
     if (this.t >= this.nextThink) {
       this.nextThink = this.t + this.think;

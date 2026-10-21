@@ -4,22 +4,31 @@
 import * as THREE from 'three';
 
 export const FIELD = {
-  halfX: 50,      // goal lines at x = ±50
-  halfZ: 32,      // touchlines at z = ±32
-  goalHalfW: 10,  // goal mouth is 20 wide
-  goalH: 8,
+  halfX: 60,      // goal lines at x = ±60
+  halfZ: 40,      // touchlines at z = ±40
+  goalHalfW: 11,  // goal mouth is 22 wide
+  goalH: 9,
   goalDepth: 8,
-  wallH: 9,
+  wallH: 15,
   postR: 0.35,
   ballR: 2,
   cornerGap: 4,   // glass is left open this far from each corner; the corner podiums sit in the gap
   // podiums that sit ON a touchline, half in / half out (side: +1 = bottom, -1 = top)
   // bottom: Vision, Who Am I, Aspiration · top: Life Uncoded (mirrors the dugout on the other half)
-  touchPods: [{ x: -19, side: 1 }, { x: 0, side: 1 }, { x: 19, side: 1 }, { x: -26, side: -1 }],
+  touchPods: [{ x: -23, side: 1 }, { x: 0, side: 1 }, { x: 23, side: 1 }, { x: -31, side: -1 }],
 };
 
 // Dugout ("My Academy") behind the top touchline
-export const DUGOUT = { x: 26, halfW: 7, depth: 5, h: 3.2 };
+export const DUGOUT = { x: 31, halfW: 7, depth: 5, h: 3.2 };
+
+// Glass dome over the whole stadium (pitch, stands and big screens):
+// half an ellipsoid sitting on the ground, semi-axes ax (along x), ay (height), az (along z).
+export const DOME = { ax: 132, ay: 72, az: 102 };
+// height of the dome's inner surface above (x, z); 0 outside its footprint
+export function domeHeight(x, z) {
+  const k = 1 - (x / DOME.ax) ** 2 - (z / DOME.az) ** 2;
+  return k > 0 ? DOME.ay * Math.sqrt(k) : 0;
+}
 
 export const TEAM = { blue: 0x2f7bff, orange: 0xff7a1a };
 
@@ -107,10 +116,12 @@ function pitchTextures() {
     ctx.beginPath(); ctx.arc(...P(0, 0), 0.6 * S, 0, Math.PI * 2); ctx.fill();
     for (const s of [-1, 1]) {
       const gx = s * (halfX - 0.5);
-      rect(Math.min(gx, s * 34), -21, Math.max(gx, s * 34), 21);
-      rect(Math.min(gx, s * 44), -(goalHalfW + 3), Math.max(gx, s * 44), goalHalfW + 3);
-      ctx.beginPath(); ctx.arc(...P(s * 39, 0), 0.45 * S, 0, Math.PI * 2); ctx.fill();
-      const [cx, cy] = P(s * 39, 0);
+      // penalty area 16 deep, six-yard box 6 deep, spot 11 out (measured from the goal line)
+      const pen = s * (halfX - 16), six = s * (halfX - 6), spot = s * (halfX - 11);
+      rect(Math.min(gx, pen), -(goalHalfW + 12), Math.max(gx, pen), goalHalfW + 12);
+      rect(Math.min(gx, six), -(goalHalfW + 3), Math.max(gx, six), goalHalfW + 3);
+      ctx.beginPath(); ctx.arc(...P(spot, 0), 0.45 * S, 0, Math.PI * 2); ctx.fill();
+      const [cx, cy] = P(spot, 0);
       const a = Math.acos(5 / 9.15);
       ctx.beginPath();
       if (s > 0) ctx.arc(cx, cy, 9.15 * S, Math.PI - a, Math.PI + a); else ctx.arc(cx, cy, 9.15 * S, -a, a);
@@ -225,7 +236,7 @@ export function buildArena(scene) {
   sun.position.set(35, 70, 25);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 55, bottom: -55, near: 10, far: 180 });
+  Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 68, bottom: -68, near: 10, far: 200 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.04;
   scene.add(sun);
@@ -471,26 +482,96 @@ export function buildArena(scene) {
   });
   scene.add(crowd);
 
-  // ── floodlight towers in the corners ──
-  const pole = new THREE.MeshStandardMaterial({ color: 0x3b4262, roughness: 0.6, metalness: 0.5 });
+  // ── the dome: glass shell, steel ribs, neon rings, roof lamps ──
+  buildDome(scene);
+
+  return { goals };
+}
+
+// Lattice for the dome glass: thin bright lines on transparent, tiled over the shell.
+function latticeTexture() {
+  const t = canvasTex(128, 128, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(170, 215, 255, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, w - 2, h - 2);
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, h); ctx.stroke();
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(56, 10);
+  t.anisotropy = 8;
+  return t;
+}
+
+function buildDome(scene) {
+  const { ax, ay, az } = DOME;
+  const at = (theta, phi) => new THREE.Vector3(ax * Math.cos(theta) * Math.cos(phi), ay * Math.sin(theta), az * Math.cos(theta) * Math.sin(phi));
+  const half = new THREE.SphereGeometry(1, 112, 36, 0, Math.PI * 2, 0, Math.PI / 2);
+
+  // tinted glass, seen from inside: very faint so the night sky still shows through
+  const shell = new THREE.Mesh(half, new THREE.MeshBasicMaterial({
+    color: 0x2a4a9a, transparent: true, opacity: 0.16, side: THREE.BackSide, depthWrite: false, fog: false,
+  }));
+  shell.scale.set(ax, ay, az);
+  shell.renderOrder = -1;
+  scene.add(shell);
+  // the panel lattice etched into the glass
+  const lattice = new THREE.Mesh(half, new THREE.MeshBasicMaterial({
+    map: latticeTexture(), color: 0x5f8fe0, transparent: true, opacity: 0.32, side: THREE.BackSide,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  }));
+  lattice.scale.set(ax * 0.998, ay * 0.998, az * 0.998);
+  scene.add(lattice);
+
+  // steel ribs from the ground ring up to the crown
+  const steel = new THREE.MeshStandardMaterial({ color: 0x2b3360, roughness: 0.45, metalness: 0.8, emissive: 0x0a1030, emissiveIntensity: 0.6 });
+  const RIBS = 24, CROWN = 1.43; // ribs stop at the crown ring instead of all meeting in one point
+  for (let i = 0; i < RIBS; i++) {
+    const phi = (i / RIBS) * Math.PI * 2;
+    const pts = [];
+    for (let k = 0; k <= 24; k++) pts.push(at((k / 24) * CROWN, phi));
+    const rib = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, i % 2 ? 0.35 : 0.6, 6), steel);
+    scene.add(rib);
+  }
+  // horizontal rings; two of them glow in the team colours, the crown is white
+  const ring = (theta, r, mat) => {
+    const pts = [];
+    for (let k = 0; k < 96; k++) pts.push(at(theta * 0.999, (k / 96) * Math.PI * 2));
+    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 192, r, 6, true), mat);
+    scene.add(m);
+  };
+  ring(0.02, 0.9, steel);
+  ring(0.36, 0.45, steel);
+  ring(0.72, 0.45, steel);
+  ring(1.08, 0.4, steel);
+  ring(0.54, 0.22, new THREE.MeshBasicMaterial({ color: 0x5aa0ff }));
+  ring(0.9, 0.22, new THREE.MeshBasicMaterial({ color: 0xff8a3a }));
+  ring(CROWN, 0.7, new THREE.MeshBasicMaterial({ color: 0xdff4ff }));
+  // crown: a closed glowing disc at the very top
+  const cap = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 64),
+    new THREE.MeshBasicMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, fog: false }),
+  );
+  cap.rotation.x = Math.PI / 2;
+  cap.scale.set(ax * Math.cos(CROWN), az * Math.cos(CROWN), 1);
+  cap.position.y = ay * Math.sin(CROWN) - 0.2;
+  scene.add(cap);
+
+  // stadium lamps hung from the roof, aimed at the centre spot
+  const housing = new THREE.MeshStandardMaterial({ color: 0x3b4262, roughness: 0.6, metalness: 0.5 });
   const lamp = new THREE.MeshBasicMaterial({ color: 0xf4f8ff });
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const x = sx * (halfX + 30), z = sz * (halfZ + 26);
-    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 38, 10), pole);
-    p.position.set(x, 19, z);
-    scene.add(p);
+  for (let i = 0; i < 8; i++) {
+    const phi = (i / 8) * Math.PI * 2 + Math.PI / 8;
     const head = new THREE.Group();
-    head.position.set(x, 39, z);
+    head.position.copy(at(0.62, phi)).multiplyScalar(0.96);
     head.lookAt(0, 0, 0);
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(7, 4, 0.4), pole);
-    head.add(panel);
-    for (let i = -1; i <= 1; i++) for (let j = -0.5; j <= 0.5; j++) {
+    head.add(new THREE.Mesh(new THREE.BoxGeometry(7, 4, 0.4), housing));
+    for (let a = -1; a <= 1; a++) for (let b = -0.5; b <= 0.5; b++) {
       const l = new THREE.Mesh(new THREE.CircleGeometry(0.75, 16), lamp);
-      l.position.set(i * 2.1, j * 1.8, 0.21);
+      l.position.set(a * 2.1, b * 1.8, 0.21);
       head.add(l);
     }
     scene.add(head);
   }
-
-  return { goals };
 }
