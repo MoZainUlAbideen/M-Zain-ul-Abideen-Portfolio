@@ -1,0 +1,12 @@
+{
+  "name": "zain-arena-portfolio",
+  "private": true,
+  "type": "module",
+  "description": "Static site; npm is only used to run the tests (three.js for the physics tests).",
+  "scripts": {
+    "test": "node tests/academy.test.mjs && node tests/physics.test.mjs"
+  },
+  "devDependencies": {
+    "three": "0.170.0"
+  }
+}

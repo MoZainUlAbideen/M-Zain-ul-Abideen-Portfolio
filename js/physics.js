@@ -1,19 +1,35 @@
 // ─────────────────────────────────────────────────────────────
-//  Arcade physics: Rocket League-lite car + bouncy ball.
-//  Fixed 120 Hz steps so it behaves the same on every screen.
+//  Arcade physics, Rocket League style. Fixed 120 Hz steps.
+//
+//  The arena is a "rounded box": flat floor, curved ramps up to the
+//  walls, walls up to a curved edge and a closed ceiling. Everything
+//  touches it through arenaContact() (arena.js), so the ball bounces
+//  off curves and cars can drive up the walls and onto the ceiling.
+//
+//  A car keeps a full 3D frame (fwd, up). On a surface it drives in
+//  the surface's plane and sticks to it; on the ceiling it only stays
+//  put while you hold throttle. In the air: W/S pitch, A/D yaw, boost
+//  pushes along the nose, a second jump is a double jump or, with a
+//  direction held, a flip. Hit someone at supersonic speed: demolition.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { FIELD, DOME, domeHeight } from './arena.js';
+import { FIELD, arenaContact, goalChannel } from './arena.js';
 import { CAR_DIMS } from './car.js';
 import { PODIUM_R, PODIUM_H } from './podiums.js';
 
 export const CFG = {
   accel: 26, maxSpeed: 23, reverseAccel: 20, reverseMax: 11, brake: 55, coast: 7,
   boostAccel: 40, boostMax: 40, boostDrain: 33, boostRegen: 9,
-  turn: 2.5, airTurn: 2.2, grip: 9,
-  gravity: 32, jump: 13,
-  ballGravity: 22, ballBounce: 0.66, ballWallBounce: 0.72, ballRoll: 0.35, ballAirDrag: 0.04, ballMax: 60,
+  turn: 2.5, grip: 9,
+  gravity: 32, jump: 13, doubleJump: 10, flipSpeed: 11, flipTime: 0.55, jumpWindow: 1.25,
+  airPitch: 3.4, airYaw: 2.6,
+  wallGravity: 0.55,   // share of gravity that drags a car down a wall while it is stuck to it
+  stick: 1.15,          // how hard a throttling car is pressed into the surface (x gravity)
+  stickIdle: 0.5,       // ... and with no throttle (not enough for the ceiling: you drop off)
+  supersonic: 36,
+  ballGravity: 22, ballBounce: 0.62, ballWallBounce: 0.7, ballRoll: 0.35, ballAirDrag: 0.04, ballMax: 60,
   hitRestitution: 0.55, hitKick: 0.4,
+  demoTime: 3,
 };
 
 export const SPAWN = {
@@ -23,28 +39,46 @@ export const SPAWN = {
 };
 
 const H = 1 / 120;
-const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), n = new THREE.Vector3();
+const CORE = 1.0; // the car's centre sits this far above its wheels; it is what touches the arena
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), n = new THREE.Vector3(), core = new THREE.Vector3();
+const left = new THREE.Vector3(), q = new THREE.Quaternion(), m4 = new THREE.Matrix4();
+
+const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };
+
+function carQuat(c, out) {
+  left.crossVectors(c.up, c.fwd).normalize();
+  m4.makeBasis(left, c.up, c.fwd);
+  return out.setFromRotationMatrix(m4);
+}
 
 export class Physics {
-  constructor(pods, { onGoal, onHit } = {}) {
+  constructor(pods, { onGoal, onHit, onEvent } = {}) {
     this.pods = pods.map((p) => ({ x: p.x, z: p.z }));
     this.onGoal = onGoal || (() => {});
     this.onHit = onHit || (() => {});
-    const newCar = (pos, yaw) => ({
-      pos: pos.clone(), vel: new THREE.Vector3(), yaw,
+    this.onEvent = onEvent || (() => {}); // ('jump'|'flip'|'land'|'demo'|'supersonic', car, extra)
+    const newCar = (pos, yaw, team) => ({
+      team, spawn: pos.clone(), spawnYaw: yaw,
+      pos: pos.clone(), vel: new THREE.Vector3(), fwd: new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), up: WORLD_UP.clone(),
+      quat: new THREE.Quaternion(), yaw,
       steer: 0, onGround: true, boost: 100, boosting: false, jumpHeld: false, roll: 0, speed: 0,
-      hitCooldown: 0,
+      airTime: 0, jumped: false, jumpTimer: 0, canDouble: false, flip: null,
+      supersonic: false, demoT: 0, hitCooldown: 0, surface: 'floor',
     });
-    this.car = newCar(SPAWN.car, SPAWN.yaw);
-    this.bot = newCar(SPAWN.bot, SPAWN.botYaw);
+    this.car = newCar(SPAWN.car, SPAWN.yaw, 'blue');
+    this.bot = newCar(SPAWN.bot, SPAWN.botYaw, 'orange');
     this.cars = [this.car, this.bot];
-    this.botOn = true;    // the bot is always on the pitch: parked until a match starts
+    this.botOn = true;     // the bot is always on the pitch: parked until a match starts
     this.autoReset = true; // free play: the ball respawns 3 s after a goal (a match handles its own kickoffs)
+    this.regen = CFG.boostRegen; // boost recharges by itself over time
+    this.kickoffBoost = 100;
     this.ball = { pos: SPAWN.ball.clone(), vel: new THREE.Vector3(), quat: new THREE.Quaternion() };
     this.acc = 0;
-    const pose = () => ({ carPos: new THREE.Vector3(), carYaw: 0, botPos: new THREE.Vector3(), botYaw: 0, ballPos: new THREE.Vector3(), ballQuat: new THREE.Quaternion() });
+    const pose = () => ({ carPos: new THREE.Vector3(), carQuat: new THREE.Quaternion(), carYaw: 0, botPos: new THREE.Vector3(), botQuat: new THREE.Quaternion(), botYaw: 0, ballPos: new THREE.Vector3(), ballQuat: new THREE.Quaternion() });
     this.prev = pose();
     this.render = pose();
+    for (const c of this.cars) carQuat(c, c.quat);
     this.snapshot(); this.interpolate();
     this.goalLock = false;
     this.resetTimer = 0;
@@ -57,36 +91,37 @@ export class Physics {
     this.prev.ballPos.copy(this.ball.pos);
   }
 
-  resetCar() {
-    const c = this.car;
-    c.pos.copy(SPAWN.car); c.vel.set(0, 0, 0); c.yaw = SPAWN.yaw; c.boost = 100;
-    this.prev.carPos.copy(c.pos); this.prev.carYaw = c.yaw;
+  placeCar(c) {
+    c.pos.copy(c.spawn); c.vel.set(0, 0, 0);
+    c.fwd.set(Math.sin(c.spawnYaw), 0, Math.cos(c.spawnYaw)); c.up.copy(WORLD_UP); c.yaw = c.spawnYaw;
+    c.onGround = true; c.flip = null; c.jumped = false; c.canDouble = false; c.airTime = 0; c.demoT = 0;
+    c.boost = this.kickoffBoost; c.surface = 'floor';
+    carQuat(c, c.quat);
+    const key = c === this.car ? 'car' : 'bot';
+    this.prev[`${key}Pos`].copy(c.pos); this.prev[`${key}Quat`].copy(c.quat); this.prev[`${key}Yaw`] = c.yaw;
   }
-
-  resetBot() {
-    const c = this.bot;
-    c.pos.copy(SPAWN.bot); c.vel.set(0, 0, 0); c.yaw = SPAWN.botYaw; c.boost = 100;
-    this.prev.botPos.copy(c.pos); this.prev.botYaw = c.yaw;
-  }
+  resetCar() { this.placeCar(this.car); }
+  resetBot() { this.placeCar(this.bot); }
 
   // kickoff: everything back to its spot
   resetAll() { this.resetCar(); this.resetBot(); this.resetBall(); this.resetTimer = 0; }
 
   // Positions to DRAW this frame: blended between the last two physics steps.
-  // Without this, a 60/144 Hz screen sees 0, 1 or 2+ steps per frame and the
-  // car jitters slightly even when the frame rate is fine.
   snapshot() {
-    this.prev.carPos.copy(this.car.pos); this.prev.carYaw = this.car.yaw;
-    this.prev.botPos.copy(this.bot.pos); this.prev.botYaw = this.bot.yaw;
-    this.prev.ballPos.copy(this.ball.pos); this.prev.ballQuat.copy(this.ball.quat);
+    const p = this.prev;
+    p.carPos.copy(this.car.pos); p.carQuat.copy(this.car.quat); p.carYaw = this.car.yaw;
+    p.botPos.copy(this.bot.pos); p.botQuat.copy(this.bot.quat); p.botYaw = this.bot.yaw;
+    p.ballPos.copy(this.ball.pos); p.ballQuat.copy(this.ball.quat);
   }
 
   interpolate() {
     const a = this.acc / H, p = this.prev, r = this.render;
     const yaw = (from, to) => { const d = to - from; return from + Math.atan2(Math.sin(d), Math.cos(d)) * a; };
     r.carPos.lerpVectors(p.carPos, this.car.pos, a);
+    r.carQuat.slerpQuaternions(p.carQuat, this.car.quat, a);
     r.carYaw = yaw(p.carYaw, this.car.yaw);
     r.botPos.lerpVectors(p.botPos, this.bot.pos, a);
+    r.botQuat.slerpQuaternions(p.botQuat, this.bot.quat, a);
     r.botYaw = yaw(p.botYaw, this.bot.yaw);
     r.ballPos.lerpVectors(p.ballPos, this.ball.pos, a);
     r.ballQuat.slerpQuaternions(p.ballQuat, this.ball.quat, a);
@@ -111,85 +146,160 @@ export class Physics {
     }
   }
 
+  // ── cars ──
   stepCar(c, inp) {
+    if (c.demoT > 0) { // blown up: wait, then respawn at the kickoff spot
+      c.demoT -= H;
+      if (c.demoT <= 0) { const b = c.boost; this.placeCar(c); c.boost = Math.max(b, 33); }
+      return;
+    }
     c.steer += (inp.steer - c.steer) * Math.min(1, H * 10);
-    let fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    let vF = c.vel.x * fx + c.vel.z * fz;
-    const latX = c.vel.x - fx * vF, latZ = c.vel.z - fz * vF;
+    const pressJump = inp.jump && !c.jumpHeld;
+    c.jumpHeld = inp.jump;
 
     c.boosting = inp.boost && c.boost > 0;
     if (c.boosting) c.boost = Math.max(0, c.boost - CFG.boostDrain * H);
-    else c.boost = Math.min(100, c.boost + CFG.boostRegen * H);
+    else c.boost = Math.min(100, c.boost + this.regen * H);
 
-    if (c.onGround) {
-      // steering: needs a bit of speed, gets slightly lazier when very fast
-      const sf = Math.min(1, Math.abs(vF) / 7) * (1 - 0.3 * Math.min(1, Math.max(0, (Math.abs(vF) - 22) / 18)));
-      c.yaw += c.steer * CFG.turn * sf * (vF >= 0 ? 1 : -1) * H;
-
-      if (c.boosting) vF += CFG.boostAccel * H;
-      else if (inp.throttle > 0) vF += (vF < -0.5 ? CFG.brake : CFG.accel) * H;
-      else if (inp.throttle < 0) vF -= (vF > 0.5 ? CFG.brake : CFG.reverseAccel) * H;
-      else vF -= Math.sign(vF) * Math.min(Math.abs(vF), CFG.coast * H);
-
-      if (!c.boosting && vF > CFG.maxSpeed) vF = Math.max(CFG.maxSpeed, vF - 14 * H);
-      vF = Math.min(vF, CFG.boostMax);
-      vF = Math.max(vF, -CFG.reverseMax);
-
-      fx = Math.sin(c.yaw); fz = Math.cos(c.yaw);
-      const k = Math.exp(-CFG.grip * H);
-      c.vel.x = fx * vF + latX * k;
-      c.vel.z = fz * vF + latZ * k;
-
-      if (inp.jump && !c.jumpHeld) { c.vel.y = CFG.jump; c.onGround = false; }
-    } else {
-      c.yaw += inp.steer * CFG.airTurn * H;
-      if (c.boosting) {
-        fx = Math.sin(c.yaw); fz = Math.cos(c.yaw);
-        c.vel.x += fx * CFG.boostAccel * 0.8 * H;
-        c.vel.z += fz * CFG.boostAccel * 0.8 * H;
-        c.vel.y += CFG.gravity * 0.25 * H; // a little lift, feels floaty like RL
-      }
-      const hs = Math.hypot(c.vel.x, c.vel.z);
-      if (hs > CFG.boostMax) { c.vel.x *= CFG.boostMax / hs; c.vel.z *= CFG.boostMax / hs; }
-      c.vel.y -= CFG.gravity * H;
-    }
-    c.jumpHeld = inp.jump;
+    if (c.onGround) this.groundStep(c, inp, pressJump);
+    else this.airStep(c, inp, pressJump);
 
     c.pos.addScaledVector(c.vel, H);
-    if (c.pos.y <= 0) { c.pos.y = 0; if (c.vel.y < 0) c.vel.y = 0; c.onGround = true; }
-    // boosting up into the dome: stop at the roof
-    const roof = domeHeight(c.pos.x, c.pos.z) - 2;
-    if (c.pos.y > roof) { c.pos.y = roof; if (c.vel.y > 0) c.vel.y = 0; }
-
-    this.carWalls(c);
+    this.carSurface(c);
     this.carPodiums(c);
 
-    c.speed = c.vel.x * Math.sin(c.yaw) + c.vel.z * Math.cos(c.yaw);
+    c.fwd.sub(tmp.copy(c.up).multiplyScalar(c.fwd.dot(c.up))).normalize();
+    carQuat(c, c.quat);
+    c.yaw = Math.atan2(c.fwd.x, c.fwd.z);
+    c.speed = c.vel.dot(c.fwd);
     c.roll += (c.speed * H) / CAR_DIMS.wheelR;
+    const sonic = c.vel.length() > CFG.supersonic;
+    if (sonic && !c.supersonic) this.onEvent('supersonic', c);
+    c.supersonic = sonic;
   }
 
-  carWalls(c) {
-    const p = c.pos, v = c.vel;
-    const { halfX, halfZ, goalHalfW, goalH, goalDepth } = FIELD;
-    const cr = 1.9;
-    if (Math.abs(p.z) > halfZ - cr) {
-      const s = Math.sign(p.z);
-      p.z = s * (halfZ - cr);
-      if (v.z * s > 0) v.z *= -0.2;
+  groundStep(c, inp, pressJump) {
+    const up = c.up;
+    // split velocity: along the surface normal / forward / sideways
+    const vN = c.vel.dot(up);
+    let vF = c.vel.dot(c.fwd);
+    tmp.copy(c.vel).addScaledVector(up, -vN).addScaledVector(c.fwd, -vF); // lateral
+
+    // steering: needs a bit of speed, a little lazier when very fast
+    const sf = Math.min(1, Math.abs(vF) / 7) * (1 - 0.3 * Math.min(1, Math.max(0, (Math.abs(vF) - 22) / 18)));
+    const turn = c.steer * CFG.turn * sf * (vF >= 0 ? 1 : -1) * H;
+    if (turn) c.fwd.applyQuaternion(q.setFromAxisAngle(up, turn));
+
+    if (c.boosting) vF += CFG.boostAccel * H;
+    else if (inp.throttle > 0) { if (vF < CFG.maxSpeed) vF += (vF < -0.5 ? CFG.brake : CFG.accel) * inp.throttle * H; } // throttle alone tops out at maxSpeed
+    else if (inp.throttle < 0) vF -= (vF > 0.5 ? CFG.brake : CFG.reverseAccel) * -inp.throttle * H;
+    else vF -= Math.sign(vF) * Math.min(Math.abs(vF), CFG.coast * H);
+    if (!c.boosting && vF > CFG.maxSpeed) vF = Math.max(CFG.maxSpeed, vF - 14 * H);
+    vF = Math.min(vF, CFG.boostMax);
+    vF = Math.max(vF, -CFG.reverseMax);
+
+    const k = Math.exp(-CFG.grip * H);
+    c.vel.copy(c.fwd).multiplyScalar(vF).addScaledVector(tmp, k);
+
+    // gravity along the surface (slows you going up a wall, rolls you down it)
+    const gN = -CFG.gravity * up.y; // gravity component along the normal (negative = into the surface)
+    tmp2.set(0, -CFG.gravity, 0).addScaledVector(up, -gN);
+    c.vel.addScaledVector(tmp2, (c.surface === 'floor' ? 1 : CFG.wallGravity) * H);
+
+    // stuck to it? on the ceiling gravity pulls you off unless you hold throttle
+    const stick = CFG.gravity * (inp.throttle || c.boosting ? CFG.stick : CFG.stickIdle);
+    if (gN > stick && c.surface !== 'floor') { this.leaveGround(c); c.vel.addScaledVector(up, 1.5); return; } // drop off (along up = away from the surface)
+    // too slow on a wall with nothing pressing you into it: you peel off (RL: stop on a wall and you fall)
+    if (c.surface === 'wall' && !inp.throttle && !c.boosting && c.vel.length() < 6 && up.y < 0.7) { this.leaveGround(c); c.vel.addScaledVector(up, 1.5); return; }
+
+    if (pressJump) {
+      c.vel.addScaledVector(up, CFG.jump);
+      this.leaveGround(c);
+      c.jumped = true; c.canDouble = true; c.jumpTimer = 0;
+      this.onEvent('jump', c);
     }
-    const ax = Math.abs(p.x), sx = Math.sign(p.x);
-    if (ax > halfX - cr) {
-      const inGoal = ax > halfX;
-      const fitsMouth = Math.abs(p.z) < goalHalfW - cr && p.y < goalH - 2;
-      if (inGoal) {
-        const zl = goalHalfW - cr;
-        if (Math.abs(p.z) > zl) { const s = Math.sign(p.z); p.z = s * zl; if (v.z * s > 0) v.z *= -0.2; }
-        if (ax > halfX + goalDepth - cr) { p.x = sx * (halfX + goalDepth - cr); if (v.x * sx > 0) v.x *= -0.2; }
-      } else if (!fitsMouth) {
-        p.x = sx * (halfX - cr);
-        if (v.x * sx > 0) v.x *= -0.2;
+  }
+
+  leaveGround(c) { c.onGround = false; c.airTime = 0; c.surface = 'air'; }
+
+  airStep(c, inp, pressJump) {
+    c.airTime += H;
+    c.jumpTimer += H;
+    left.crossVectors(c.up, c.fwd).normalize();
+    if (c.flip) {
+      // flipping: spin about the flip axis, damp vertical speed a touch (RL flip cancel feel)
+      c.flip.t += H;
+      const w = (Math.PI * 2) / CFG.flipTime;
+      q.setFromAxisAngle(c.flip.axis, w * H);
+      c.fwd.applyQuaternion(q); c.up.applyQuaternion(q);
+      if (c.flip.t >= CFG.flipTime) c.flip = null;
+    } else {
+      // air control: W/S pitch (nose down / up), A/D yaw
+      if (inp.throttle) {
+        q.setFromAxisAngle(left, inp.throttle * CFG.airPitch * H);
+        c.fwd.applyQuaternion(q); c.up.applyQuaternion(q);
+      }
+      if (inp.steer) c.fwd.applyQuaternion(q.setFromAxisAngle(c.up, inp.steer * CFG.airYaw * H));
+      c.up.sub(tmp.copy(c.fwd).multiplyScalar(c.up.dot(c.fwd))).normalize();
+    }
+    // second jump: double jump, or a flip if a direction is held
+    if (pressJump && c.canDouble && c.jumpTimer < CFG.jumpWindow) {
+      c.canDouble = false;
+      const fx = inp.throttle, sx = inp.steer;
+      if (Math.abs(fx) > 0.3 || Math.abs(sx) > 0.3) {
+        // flip: a burst of speed that way (flat), and a spin
+        tmp.set(c.fwd.x, 0, c.fwd.z).normalize();
+        tmp2.set(left.x, 0, left.z).normalize();
+        const dir = tmp.multiplyScalar(fx).addScaledVector(tmp2, sx).normalize();
+        c.vel.addScaledVector(dir, CFG.flipSpeed);
+        c.vel.y *= 0.35;
+        // spin axis: forward flip = nose over (around left), side flip = roll (around -fwd)
+        const axis = new THREE.Vector3().addScaledVector(left, fx).addScaledVector(c.fwd, -sx).normalize();
+        c.flip = { t: 0, axis, fwd0: c.fwd.clone() };
+        this.onEvent('flip', c);
+      } else {
+        c.vel.addScaledVector(c.up, CFG.doubleJump);
+        this.onEvent('jump', c, true);
       }
     }
+    if (c.boosting) c.vel.addScaledVector(c.fwd, CFG.boostAccel * H);
+    c.vel.y -= CFG.gravity * H;
+    if (c.vel.length() > CFG.boostMax) c.vel.setLength(CFG.boostMax);
+  }
+
+  // keep the car inside the arena; land on (or stay on) whatever it touches
+  carSurface(c) {
+    core.copy(c.pos).addScaledVector(c.up, CORE);
+    const pen = arenaContact(core, CORE, n);
+    if (pen > 0) {
+      core.addScaledVector(n, pen);
+      const intoSurface = c.vel.dot(n);
+      if (!c.onGround) {
+        // landing (any surface, any angle): the car is turned to sit on it, like RL's forgiving landings
+        if (intoSurface < 0 || pen > 0.02) {
+          if (intoSurface < -6) this.onEvent('land', c, -intoSurface);
+          c.vel.addScaledVector(n, -intoSurface);
+          c.up.copy(n);
+          if (c.flip) c.fwd.copy(c.flip.fwd0); // landed mid-flip: finish it facing the way you flipped
+          if (Math.abs(c.fwd.dot(n)) > 0.95) c.fwd.copy(c.vel).addScaledVector(n, -c.vel.dot(n)); // nose straight into it: use the slide direction
+          if (c.fwd.lengthSq() < 1e-6) c.fwd.set(1, 0, 0).addScaledVector(n, -n.x);
+          c.fwd.addScaledVector(n, -c.fwd.dot(n)).normalize();
+          c.onGround = true; c.flip = null; c.jumped = false; c.canDouble = false;
+        }
+      } else {
+        // already driving: follow the surface as it curves
+        c.up.lerp(n, 0.5).normalize();
+        if (intoSurface < 0) c.vel.addScaledVector(n, -intoSurface);
+      }
+      c.surface = n.y > 0.9 ? 'floor' : n.y < -0.7 ? 'ceiling' : 'wall';
+    } else if (c.onGround) {
+      // nothing under the wheels any more (drove off a podium edge, or the surface dropped away)
+      const probe = arenaContact(tmp.copy(c.pos).addScaledVector(c.up, CORE - 0.35), CORE, n);
+      if (probe <= 0) this.leaveGround(c);
+    }
+    c.pos.copy(core).addScaledVector(c.up, -CORE);
+    // through the goal mouth and inside the net
+    goalChannel(c.pos, 1.9, c.vel, 0.2, true);
   }
 
   carPodiums(c) {
@@ -207,6 +317,7 @@ export class Physics {
     }
   }
 
+  // ── ball ──
   stepBall() {
     const b = this.ball, p = b.pos, v = b.vel;
     const r = FIELD.ballR;
@@ -215,25 +326,20 @@ export class Physics {
     if (v.length() > CFG.ballMax) v.setLength(CFG.ballMax);
     p.addScaledVector(v, H);
 
-    // floor
-    if (p.y < r) {
-      p.y = r;
-      if (v.y < 0) v.y = v.y < -3 ? -v.y * CFG.ballBounce : 0;
-    }
-    if (p.y <= r + 0.01) {
-      const k = Math.exp(-CFG.ballRoll * H);
-      v.x *= k; v.z *= k;
-    }
-    // the dome roof: bounce off its curved inner surface
-    const roof = domeHeight(p.x, p.z) - r;
-    if (p.y > roof) {
-      p.y = roof;
-      n.set(p.x / DOME.ax ** 2, (p.y + r) / DOME.ay ** 2, p.z / DOME.az ** 2).normalize(); // outward normal
+    // floor, ramps, walls and ceiling in one go
+    const pen = arenaContact(p, r, n);
+    if (pen > 0) {
+      p.addScaledVector(n, pen);
       const vn = v.dot(n);
-      if (vn > 0) { v.addScaledVector(n, -(1 + CFG.ballWallBounce) * vn); this.onHit('wall', vn); }
+      if (vn < 0) {
+        const e = n.y > 0.9 ? CFG.ballBounce : CFG.ballWallBounce;
+        // tiny bounces on the floor die out so the ball can roll
+        v.addScaledVector(n, -(vn < -3 ? 1 + e : 1) * vn);
+        if (-vn > 3) this.onHit('wall', -vn);
+      }
+      if (n.y > 0.9) { const k = Math.exp(-CFG.ballRoll * H); v.x *= k; v.z *= k; }
     }
-
-    this.ballWalls();
+    goalChannel(p, r, v, 0.3, false, () => this.onHit('wall', 4));
     this.ballPosts();
     this.ballPodiums();
 
@@ -242,8 +348,7 @@ export class Physics {
     const w = tmp.length() / r;
     if (w > 1e-4) {
       tmp.normalize();
-      const q = new THREE.Quaternion().setFromAxisAngle(tmp, w * H);
-      b.quat.premultiply(q);
+      b.quat.premultiply(q.setFromAxisAngle(tmp, w * H));
     }
 
     // goal?
@@ -251,31 +356,6 @@ export class Physics {
       this.goalLock = true;
       this.resetTimer = 3;
       this.onGoal(p.x > 0 ? 'orange' : 'blue', p.clone());
-    }
-  }
-
-  ballWalls() {
-    const b = this.ball, p = b.pos, v = b.vel;
-    const { halfX, halfZ, goalHalfW, goalH, goalDepth, ballR: r } = FIELD;
-    const e = CFG.ballWallBounce;
-    if (Math.abs(p.z) > halfZ - r) {
-      const s = Math.sign(p.z);
-      p.z = s * (halfZ - r);
-      if (v.z * s > 0) { v.z *= -e; this.onHit('wall', Math.abs(v.z)); }
-    }
-    const ax = Math.abs(p.x), sx = Math.sign(p.x);
-    if (ax > halfX - r) {
-      const inGoal = ax > halfX;
-      const inMouth = Math.abs(p.z) < goalHalfW && p.y < goalH;
-      if (inGoal) {
-        const en = 0.3; // nets swallow energy
-        if (Math.abs(p.z) > goalHalfW - r) { const s = Math.sign(p.z); p.z = s * (goalHalfW - r); if (v.z * s > 0) v.z *= -en; }
-        if (p.y > goalH - r) { p.y = goalH - r; if (v.y > 0) v.y *= -en; }
-        if (ax > halfX + goalDepth - r) { p.x = sx * (halfX + goalDepth - r); if (v.x * sx > 0) v.x *= -en; }
-      } else if (!inMouth) {
-        p.x = sx * (halfX - r);
-        if (v.x * sx > 0) { v.x *= -e; this.onHit('wall', Math.abs(v.x)); }
-      }
     }
   }
 
@@ -313,7 +393,6 @@ export class Physics {
       const R = PODIUM_R + r;
       if (d < R && p.y < PODIUM_H + r * 0.6) {
         if (p.y - r > PODIUM_H - 0.4 && d < PODIUM_R) {
-          // landed on top
           p.y = PODIUM_H + r; if (v.y < 0) v.y *= -CFG.ballBounce;
         } else {
           const nx = dx / (d || 1), nz = dz / (d || 1);
@@ -325,14 +404,15 @@ export class Physics {
     }
   }
 
+  // ball against a car's box (in the car's own frame, so it works on walls too)
   collideCarBall(c) {
     c.hitCooldown -= H;
+    if (c.demoT > 0) return;
     const b = this.ball, r = FIELD.ballR;
     const { half, centerY } = CAR_DIMS;
-    const cos = Math.cos(c.yaw), sin = Math.sin(c.yaw);
-    // ball centre in car-local space
-    const wx = b.pos.x - c.pos.x, wy = b.pos.y - (c.pos.y + centerY), wz = b.pos.z - c.pos.z;
-    const lx = wx * cos - wz * sin, lz = wx * sin + wz * cos, ly = wy;
+    left.crossVectors(c.up, c.fwd).normalize();
+    tmp.copy(b.pos).sub(c.pos).addScaledVector(c.up, -centerY);
+    const lx = tmp.dot(left), ly = tmp.dot(c.up), lz = tmp.dot(c.fwd);
     const qx = Math.max(-half.x, Math.min(half.x, lx));
     const qy = Math.max(-half.y, Math.min(half.y, ly));
     const qz = Math.max(-half.z, Math.min(half.z, lz));
@@ -340,8 +420,7 @@ export class Physics {
     let d = Math.hypot(dx, dy, dz);
     if (d >= r) return;
     if (d < 1e-5) { dx = 0; dy = 1; dz = 0; d = 0; } else { dx /= d; dy /= d; dz /= d; }
-    // back to world
-    n.set(dx * cos + dz * sin, dy, -dx * sin + dz * cos).normalize();
+    n.set(0, 0, 0).addScaledVector(left, dx).addScaledVector(c.up, dy).addScaledVector(c.fwd, dz).normalize();
     b.pos.addScaledVector(n, r - d);
     tmp.copy(b.vel).sub(c.vel);
     const vn = tmp.dot(n);
@@ -356,24 +435,33 @@ export class Physics {
     }
   }
 
-  // the two cars bump off each other (treated as two upright cylinders)
+  // the two cars bump (two spheres around their centres); supersonic into someone = demolition
   collideCars() {
     const a = this.car, b = this.bot;
-    const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
-    const d = Math.hypot(dx, dz), R = 3.6;
-    if (d >= R || Math.abs(a.pos.y - b.pos.y) > 1.6) return;
-    const nx = d > 1e-5 ? dx / d : 1, nz = d > 1e-5 ? dz / d : 0;
+    if (a.demoT > 0 || b.demoT > 0) return;
+    tmp.copy(b.pos).addScaledVector(b.up, CORE).sub(tmp2.copy(a.pos).addScaledVector(a.up, CORE));
+    const d = tmp.length(), R = 3.4;
+    if (d >= R) return;
+    n.copy(tmp).divideScalar(d || 1);
+    // who is driving into whom, fast enough to demo?
+    const aIn = a.vel.dot(n), bIn = -b.vel.dot(n);
+    if (a.supersonic && aIn > 18 && aIn > bIn) return this.demo(b, a);
+    if (b.supersonic && bIn > 18 && bIn > aIn) return this.demo(a, b);
     const push = (R - d) / 2;
-    a.pos.x -= nx * push; a.pos.z -= nz * push;
-    b.pos.x += nx * push; b.pos.z += nz * push;
-    const vn = (b.vel.x - a.vel.x) * nx + (b.vel.z - a.vel.z) * nz;
+    a.pos.addScaledVector(n, -push);
+    b.pos.addScaledVector(n, push);
+    const vn = (b.vel.dot(n) - a.vel.dot(n));
     if (vn < 0) {
       const j = -(1 + 0.4) * vn / 2;
-      a.vel.x -= nx * j; a.vel.z -= nz * j;
-      b.vel.x += nx * j; b.vel.z += nz * j;
+      a.vel.addScaledVector(n, -j);
+      b.vel.addScaledVector(n, j);
       if (j > 3) this.onHit('bump', j * 2);
     }
   }
-}
 
-const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };
+  demo(victim, by) {
+    victim.demoT = CFG.demoTime;
+    victim.vel.set(0, 0, 0);
+    this.onEvent('demo', victim, by);
+  }
+}

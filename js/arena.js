@@ -1,36 +1,81 @@
 // ─────────────────────────────────────────────────────────────
-//  The arena: pitch, glass walls, two goals, small stands, lights, ball.
+//  The arena, Rocket League style: a closed "rounded box".
+//  Grass pitch, curved ramps up to the walls, walls up to a curved
+//  edge and a glass ceiling. Hex-panel glass tinted blue on the blue
+//  half and orange on the orange half; goals cut into the end walls.
+//  Outside: the stands with the crowd, the dugout and the big screens.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
 
 export const FIELD = {
-  halfX: 60,      // goal lines at x = ±60
-  halfZ: 40,      // touchlines at z = ±40
+  halfX: 60,      // goal lines (end walls) at x = ±60
+  halfZ: 40,      // side walls at z = ±40
+  height: 30,     // ceiling
+  R: 8,           // radius of every curved edge: floor→wall, wall→ceiling and the corners
   goalHalfW: 11,  // goal mouth is 22 wide
   goalH: 9,
   goalDepth: 8,
-  wallH: 15,
   postR: 0.35,
   ballR: 2,
-  cornerGap: 4,   // glass is left open this far from each corner; the corner podiums sit in the gap
-  // podiums that sit ON a touchline, half in / half out (side: +1 = bottom, -1 = top)
-  // bottom: Vision, Who Am I, Aspiration · top: Life Uncoded (mirrors the dugout on the other half)
-  touchPods: [{ x: -23, side: 1 }, { x: 0, side: 1 }, { x: 23, side: 1 }, { x: -31, side: -1 }],
 };
+FIELD.wallH = FIELD.height;
+// the flat part of the floor (where the ramps start)
+FIELD.flatX = FIELD.halfX - FIELD.R;
+FIELD.flatZ = FIELD.halfZ - FIELD.R;
 
-// Dugout ("My Academy") behind the top touchline
-export const DUGOUT = { x: 31, halfW: 7, depth: 5, h: 3.2 };
-
-// Glass dome over the whole stadium (pitch, stands and big screens):
-// half an ellipsoid sitting on the ground, semi-axes ax (along x), ay (height), az (along z).
-export const DOME = { ax: 132, ay: 72, az: 102 };
-// height of the dome's inner surface above (x, z); 0 outside its footprint
-export function domeHeight(x, z) {
-  const k = 1 - (x / DOME.ax) ** 2 - (z / DOME.az) ** 2;
-  return k > 0 ? DOME.ay * Math.sqrt(k) : 0;
-}
+// Dugout ("My Academy") behind the top side wall
+export const DUGOUT = { x: 24, halfW: 7, depth: 5, h: 3.2 };
 
 export const TEAM = { blue: 0x2f7bff, orange: 0xff7a1a };
+
+// The glass dome over the whole stadium (pitch, stands and big screens): half an ellipsoid on
+// the ground, semi-axes ax (along x), ay (height), az (along z). Purely visual: the arena shell
+// inside it is what the ball and cars touch.
+export const DOME = { ax: 132, ay: 72, az: 102 };
+
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+// How far a sphere (centre p, radius r) has pushed into the arena shell.
+// Returns the depth (0 = not touching) and writes the inward surface normal to `out`.
+// The shell is a box with every edge rounded by R; in the goal mouth the end wall is open.
+export function arenaContact(p, r, out) {
+  const { halfX, halfZ, height, R, goalHalfW, goalH } = FIELD;
+  const ix = halfX - R, iz = halfZ - R;
+  const mouth = Math.abs(p.z) < goalHalfW && p.y < goalH;
+  const qx = mouth ? p.x : clamp(p.x, -ix, ix);
+  const qy = clamp(p.y, R, height - R), qz = clamp(p.z, -iz, iz);
+  const dx = p.x - qx, dy = p.y - qy, dz = p.z - qz;
+  const d = Math.hypot(dx, dy, dz), lim = R - r;
+  if (d <= lim) return 0;
+  out.set(-dx / d, -dy / d, -dz / d);
+  return d - lim;
+}
+
+// Goal mouth "channel" and the inside of the net. Keeps a sphere (or a car, isCar) between the
+// side cheeks of the mouth and inside the net box. e = bounce kept.
+export function goalChannel(p, r, v, e, isCar = false, onHit) {
+  const { halfX, R, goalHalfW, goalH, goalDepth } = FIELD;
+  const ax = Math.abs(p.x), sx = Math.sign(p.x) || 1;
+  if (ax < halfX - R || Math.abs(p.z) > goalHalfW) return;
+  if (ax > halfX) {
+    // inside the net: nets swallow energy
+    if (Math.abs(p.z) > goalHalfW - r) { const s = Math.sign(p.z); p.z = s * (goalHalfW - r); if (v.z * s > 0) v.z *= -e; }
+    const top = isCar ? goalH - 2.2 : goalH - r;
+    if (p.y > top) { p.y = top; if (v.y > 0) v.y *= -e; }
+    if (ax > halfX + goalDepth - r) { p.x = sx * (halfX + goalDepth - r); if (v.x * sx > 0) v.x *= -e; }
+    return;
+  }
+  // between the curved cheeks either side of the mouth
+  if (Math.abs(p.z) > goalHalfW - r) {
+    const t = ax - (halfX - R);
+    const h = R - Math.sqrt(Math.max(0, R * R - t * t)); // height of the ramp at this x
+    if ((isCar ? p.y : p.y - r * 0.5) < h) {
+      const s = Math.sign(p.z);
+      p.z = s * (goalHalfW - r);
+      if (v.z * s > 0) { v.z *= -(isCar ? 0.2 : e); onHit?.(); }
+    }
+  }
+}
 
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas');
@@ -42,18 +87,22 @@ function canvasTex(w, h, draw) {
 }
 
 // Tech-grid floor: glowing rounded tiles (blue half → orange half) with the
-// football markings kept on top. Returns { map, glow } canvas textures.
+
+// Tech-grid floor (the original hand-made pitch): glowing rounded tiles with the football
+// markings on top, now in an orange theme. Returns { map, glow } canvas textures.
+// The texture spans x = ±(halfX + goalDepth) and z = ±flatZ (the flat floor plus the goal mouths).
+const PITCH = { x0: -(FIELD.halfX + FIELD.goalDepth), x1: FIELD.halfX + FIELD.goalDepth, z0: -FIELD.flatZ, z1: FIELD.flatZ };
 function pitchTextures() {
-  const { halfX, halfZ, goalHalfW } = FIELD;
-  const S = 20; // px per unit
-  const W = halfX * 2 * S, Hh = halfZ * 2 * S;
+  const { halfX, goalHalfW, flatX, flatZ } = FIELD;
+  const S = 18; // px per unit
+  const W = Math.round((PITCH.x1 - PITCH.x0) * S), Hh = Math.round((PITCH.z1 - PITCH.z0) * S);
   const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = Hh; return c; };
   const baseC = mk(), glowC = mk();
   const base = baseC.getContext('2d'), glow = glowC.getContext('2d');
-  const P = (x, z) => [(x + halfX) * S, (z + halfZ) * S];
+  const P = (x, z) => [(x - PITCH.x0) * S, (z - PITCH.z0) * S];
   const mix = (t) => {
-    // blue → violet → orange across the pitch
-    const stops = [[47, 123, 255], [140, 80, 255], [255, 110, 40]];
+    // tile outlines: hot amber at the ends → pale gold through the middle
+    const stops = [[255, 196, 90], [255, 236, 170], [255, 196, 90]];
     const k = t < 0.5 ? t * 2 : (t - 0.5) * 2;
     const [a, b] = t < 0.5 ? [stops[0], stops[1]] : [stops[1], stops[2]];
     return a.map((v, i) => Math.round(v + (b[i] - v) * k));
@@ -65,33 +114,31 @@ function pitchTextures() {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   };
 
-  // base: deep navy with a soft vignette
+  // base: orange, a touch deeper towards each end
   const bg = base.createLinearGradient(0, 0, W, 0);
-  bg.addColorStop(0, '#0a1233'); bg.addColorStop(0.5, '#0d0f2e'); bg.addColorStop(1, '#1a0f26');
+  bg.addColorStop(0, '#c9561a'); bg.addColorStop(0.5, '#ec7a28'); bg.addColorStop(1, '#c9561a');
   base.fillStyle = bg; base.fillRect(0, 0, W, Hh);
   glow.fillStyle = '#000'; glow.fillRect(0, 0, W, Hh);
 
-  // tiles
-  const cols = 16, rows = 10;
-  const tw = W / cols, th = Hh / rows;
+  // tiles, between the goal lines
+  const [gx0] = P(-halfX, 0), [gx1] = P(halfX, 0);
+  const cols = 16, rows = 9;
+  const tw = (gx1 - gx0) / cols, th = Hh / rows;
   const inset = 0.55 * S, rad = 1.1 * S;
   for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
-    const x = i * tw + inset, y = j * th + inset, w = tw - inset * 2, h = th - inset * 2;
+    const x = gx0 + i * tw + inset, y = j * th + inset, w = tw - inset * 2, h = th - inset * 2;
     const c = mix((i + 0.5) / cols);
-    // tile body, slightly lighter than the gaps
     rrect(base, x, y, w, h, rad);
-    base.fillStyle = 'rgba(30,40,95,.35)'; base.fill();
+    base.fillStyle = 'rgba(255,150,70,.35)'; base.fill();
     // circuit dots
-    base.fillStyle = 'rgba(120,150,255,.10)';
+    base.fillStyle = 'rgba(255,235,200,.16)';
     for (let dx = x + 10; dx < x + w - 6; dx += 14) for (let dy = y + 10; dy < y + h - 6; dy += 14) {
       if (Math.random() < 0.5) base.fillRect(dx, dy, 3, 3);
     }
-    // a few short "traces"
-    base.strokeStyle = 'rgba(120,150,255,.12)'; base.lineWidth = 3;
-    for (let k = 0; k < 1; k++) {
-      const sx = x + 20 + Math.random() * (w - 40), sy = y + 20 + Math.random() * (h - 40);
-      base.beginPath(); base.moveTo(sx, sy); base.lineTo(sx + (Math.random() - 0.5) * 60, sy); base.lineTo(sx + (Math.random() - 0.5) * 60, sy + (Math.random() - 0.5) * 40); base.stroke();
-    }
+    // a short "trace"
+    base.strokeStyle = 'rgba(255,235,200,.18)'; base.lineWidth = 3;
+    const sx = x + 20 + Math.random() * (w - 40), sy = y + 20 + Math.random() * (h - 40);
+    base.beginPath(); base.moveTo(sx, sy); base.lineTo(sx + (Math.random() - 0.5) * 60, sy); base.lineTo(sx + (Math.random() - 0.5) * 60, sy + (Math.random() - 0.5) * 40); base.stroke();
     // glowing outline
     rrect(glow, x, y, w, h, rad);
     glow.shadowColor = rgba(c, 1); glow.shadowBlur = 10;
@@ -102,16 +149,16 @@ function pitchTextures() {
     base.strokeStyle = rgba(c, 0.55); base.lineWidth = 0.2 * S; base.stroke();
   }
 
-  // football markings, bright white-cyan, on both layers
+  // football markings, warm white, on both layers
   for (const ctx of [base, glow]) {
     ctx.save();
-    ctx.strokeStyle = ctx === glow ? 'rgba(200,235,255,.95)' : 'rgba(220,240,255,.9)';
+    ctx.strokeStyle = ctx === glow ? 'rgba(255,236,210,.95)' : 'rgba(255,244,230,.9)';
     ctx.fillStyle = ctx.strokeStyle;
     ctx.lineWidth = 0.32 * S;
-    if (ctx === glow) { ctx.shadowColor = '#7fd7ff'; ctx.shadowBlur = 8; }
+    if (ctx === glow) { ctx.shadowColor = '#ffb070'; ctx.shadowBlur = 8; }
     const rect = (x0, z0, x1, z1) => { const [a, b] = P(x0, z0); const [c, d] = P(x1, z1); ctx.strokeRect(a, b, c - a, d - b); };
-    rect(-halfX + 0.5, -halfZ + 0.5, halfX - 0.5, halfZ - 0.5);
-    ctx.beginPath(); ctx.moveTo(...P(0, -halfZ)); ctx.lineTo(...P(0, halfZ)); ctx.stroke();
+    rect(-flatX + 0.5, -flatZ + 0.5, flatX - 0.5, flatZ - 0.5); // the touchlines, where the ramps start
+    ctx.beginPath(); ctx.moveTo(...P(0, -flatZ)); ctx.lineTo(...P(0, flatZ)); ctx.stroke();
     ctx.beginPath(); ctx.arc(...P(0, 0), 9.15 * S, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(...P(0, 0), 0.6 * S, 0, Math.PI * 2); ctx.fill();
     for (const s of [-1, 1]) {
@@ -127,7 +174,7 @@ function pitchTextures() {
       if (s > 0) ctx.arc(cx, cy, 9.15 * S, Math.PI - a, Math.PI + a); else ctx.arc(cx, cy, 9.15 * S, -a, a);
       ctx.stroke();
       for (const t of [-1, 1]) {
-        ctx.beginPath(); ctx.arc(...P(s * (halfX - 0.5), t * (halfZ - 0.5)), 1.5 * S, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(...P(s * (flatX - 0.5), t * (flatZ - 0.5)), 1.5 * S, 0, Math.PI * 2); ctx.stroke();
       }
     }
     ctx.restore();
@@ -135,6 +182,102 @@ function pitchTextures() {
 
   const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   return { map: tex(baseC), glow: tex(glowC) };
+}
+
+// a floor patch (x0..x1, z0..z1) with UVs taken from the pitch texture's world mapping
+function floorPatch(x0, x1, z0, z1, mat) {
+  const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+  g.rotateX(-Math.PI / 2);
+  g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    uv.setXY(i, (pos.getX(i) - PITCH.x0) / (PITCH.x1 - PITCH.x0), 1 - (pos.getZ(i) - PITCH.z0) / (PITCH.z1 - PITCH.z0));
+  }
+  const m = new THREE.Mesh(g, mat);
+  m.receiveShadow = true;
+  return m;
+}
+
+// Hex-panel lines for the glass (tileable). White lines; tinted by vertex colour.
+function hexTexture() {
+  const s = 32, W = 3 * s, Hh = Math.round(Math.sqrt(3) * s);
+  return (() => {
+    const c = document.createElement('canvas'); c.width = W * 2; c.height = Hh * 2;
+    const ctx = c.getContext('2d');
+    ctx.scale(2, 2);
+    ctx.strokeStyle = 'rgba(255,255,255,1)'; ctx.lineWidth = 1.6;
+    const hex = (cx, cy) => {
+      ctx.beginPath();
+      for (let i = 0; i <= 6; i++) { const a = (Math.PI / 3) * i; const x = cx + s * Math.cos(a), y = cy + s * Math.sin(a); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    };
+    for (let i = -1; i <= 2; i++) for (let j = -1; j <= 2; j++) { hex(i * W, j * Hh); hex(i * W + 1.5 * s, j * Hh + Hh / 2); }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+    return t;
+  })();
+}
+
+// The shell: a finely divided box, every vertex pushed onto the rounded box surface.
+// Floor (drawn separately as grass) and the goal mouths are cut out.
+function shellGeometry() {
+  const { halfX, halfZ, height, R, goalHalfW, goalH } = FIELD;
+  const ix = halfX - R, iz = halfZ - R;
+  const box = new THREE.BoxGeometry(halfX * 2, height, halfZ * 2, 120, 30, 80).toNonIndexed();
+  box.translate(0, height / 2, 0);
+  const src = box.attributes.position;
+  const keep = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
+  for (let t = 0; t < src.count; t += 3) {
+    a.fromBufferAttribute(src, t); b.fromBufferAttribute(src, t + 1); c.fromBufferAttribute(src, t + 2);
+    m.copy(a).add(b).add(c).divideScalar(3);
+    const onFloor = m.y < 0.01, onEnd = Math.abs(Math.abs(m.x) - halfX) < 0.01;
+    if (onFloor && Math.abs(m.x) < ix && Math.abs(m.z) < iz) continue;                    // flat floor
+    if (onFloor && Math.abs(m.x) >= ix && Math.abs(m.z) < goalHalfW) continue;            // ramp under the goal mouth
+    if (onEnd && Math.abs(m.z) < goalHalfW && m.y < goalH) continue;                       // the mouth itself
+    keep.push(t);
+  }
+  const pos = new Float32Array(keep.length * 9), nor = new Float32Array(keep.length * 9);
+  const uv = new Float32Array(keep.length * 6), col = new Float32Array(keep.length * 9);
+  const v = new THREE.Vector3(), q = new THREE.Vector3(), d = new THREE.Vector3();
+  const blue = new THREE.Color(0x3d86ff), orange = new THREE.Color(0xff8a2e), white = new THREE.Color(0xdde8ff), cc = new THREE.Color();
+  let k = 0;
+  for (const t of keep) for (let j = 0; j < 3; j++, k++) {
+    v.fromBufferAttribute(src, t + j);
+    q.set(clamp(v.x, -ix, ix), clamp(v.y, R, height - R), clamp(v.z, -iz, iz));
+    d.copy(v).sub(q).normalize();
+    v.copy(q).addScaledVector(d, R);
+    pos.set([v.x, v.y, v.z], k * 3);
+    nor.set([-d.x, -d.y, -d.z], k * 3); // facing into the arena
+    // triplanar-ish UVs: pick the plane the surface mostly faces
+    const ax = Math.abs(d.x), ay = Math.abs(d.y), az = Math.abs(d.z), T = 6;
+    if (ay >= ax && ay >= az) uv.set([v.x / T, v.z / T], k * 2);
+    else if (ax >= az) uv.set([v.z / T, v.y / T], k * 2);
+    else uv.set([v.x / T, v.y / T], k * 2);
+    // team tint: blue half / orange half, white near the halfway line, dimmer on the ceiling
+    const f = clamp(v.x / (halfX * 0.25), -1, 1);
+    cc.copy(white).lerp(f < 0 ? blue : orange, Math.abs(f));
+    if (d.y > 0.5) cc.multiplyScalar(0.55);
+    col.set([cc.r, cc.g, cc.b], k * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+// the curved "cheeks" either side of each goal mouth (fill under the ramp profile)
+function cheekGeometry() {
+  const { halfX, R } = FIELD, ix = halfX - R;
+  const sh = new THREE.Shape();
+  sh.moveTo(ix, 0); sh.lineTo(halfX, 0); sh.lineTo(halfX, R);
+  for (let i = 1; i <= 24; i++) {
+    const a = (Math.PI / 2) * (1 - i / 24); // from the wall back down to the floor
+    sh.lineTo(ix + R * Math.sin(a), R - R * Math.cos(a));
+  }
+  return new THREE.ShapeGeometry(sh);
 }
 
 function netTexture(color) {
@@ -153,12 +296,14 @@ function netTexture(color) {
 }
 
 function skyTexture() {
+  // light blue overhead, warming to a soft orange at the horizon
   return canvasTex(16, 512, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#04061a');
-    g.addColorStop(0.55, '#101a4a');
-    g.addColorStop(0.78, '#2a2a6e');
-    g.addColorStop(1, '#3b2358');
+    g.addColorStop(0, '#5fa8f5');
+    g.addColorStop(0.42, '#9fcdf7');
+    g.addColorStop(0.68, '#ffd9b0');
+    g.addColorStop(0.86, '#ffb070');
+    g.addColorStop(1, '#ff9550');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
   });
@@ -225,140 +370,92 @@ export function buildBall() {
 }
 
 export function buildArena(scene) {
-  const { halfX, halfZ, goalHalfW, goalH, goalDepth, wallH, postR } = FIELD;
+  const { halfX, halfZ, height, R, goalHalfW, goalH, goalDepth, postR, flatX, flatZ } = FIELD;
 
   scene.background = skyTexture();
-  scene.fog = new THREE.Fog(0x0b1036, 140, 320);
+  scene.fog = new THREE.Fog(0xf6c9a0, 200, 460);
 
-  // ── lights ──
-  scene.add(new THREE.HemisphereLight(0xc8d8ff, 0x1c2a22, 1.1));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.4);
-  sun.position.set(35, 70, 25);
+  // ── lights: a warm late-afternoon sun ──
+  scene.add(new THREE.HemisphereLight(0xd6eaff, 0x8a5a3a, 1.2));
+  const sun = new THREE.DirectionalLight(0xffe2c0, 2.4);
+  sun.position.set(45, 60, 30);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 68, bottom: -68, near: 10, far: 200 });
+  Object.assign(sun.shadow.camera, { left: -85, right: 85, top: 60, bottom: -60, near: 10, far: 220 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.04;
   scene.add(sun);
 
-  // ── ground + pitch ──
-  const outer = new THREE.Mesh(
-    new THREE.PlaneGeometry(600, 600),
-    new THREE.MeshStandardMaterial({ color: 0x0d1330, roughness: 1 }),
-  );
+  // ── ground outside the stadium ──
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: 0x9a7058, roughness: 1 }));
   outer.rotation.x = -Math.PI / 2;
-  outer.position.y = -0.03;
+  outer.position.y = -0.05;
   outer.receiveShadow = true;
   scene.add(outer);
 
-  const { map, glow } = pitchTextures();
-  // Lambert (no specular) keeps the floor dark navy at low camera angles;
-  // the glow comes entirely from the emissive tile/line layer.
-  const pitchMat = new THREE.MeshLambertMaterial({
-    map, color: 0x8a96c4, emissiveMap: glow, emissive: 0xffffff, emissiveIntensity: 0.8,
-  });
-  const pitch = new THREE.Mesh(new THREE.PlaneGeometry(halfX * 2, halfZ * 2), pitchMat);
-  pitch.rotation.x = -Math.PI / 2;
-  pitch.receiveShadow = true;
-  scene.add(pitch);
+  // ── pitch: the flat floor and the two goal mouths ──
+  // Lambert (no specular) keeps the floor dark at low camera angles; the glow comes from the emissive layer
+  const { map, glow: glowMap } = pitchTextures();
+  const grass = new THREE.MeshLambertMaterial({ map, color: 0xffffff, emissiveMap: glowMap, emissive: 0xffffff, emissiveIntensity: 0.55 });
+  scene.add(floorPatch(-flatX, flatX, -flatZ, flatZ, grass));
+  for (const s of [-1, 1]) {
+    const a = s * flatX, b = s * (halfX + goalDepth);
+    scene.add(floorPatch(Math.min(a, b), Math.max(a, b), -goalHalfW, goalHalfW, grass));
+  }
 
-  // ── glass walls with neon rails ──
-  const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x9fd8ff, transparent: true, opacity: 0.1, roughness: 0.1, metalness: 0,
-    side: THREE.DoubleSide, depthWrite: false,
-  });
-  const neon = (color) => new THREE.MeshBasicMaterial({ color });
-  const blueN = neon(TEAM.blue), orangeN = neon(TEAM.orange), whiteN = neon(0xdff4ff);
-  const box = (w, h, d, mat, x, y, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z);
+  // ── the shell: ramps, walls, curved edges and the ceiling ──
+  const shellGeo = shellGeometry();
+  const glass = new THREE.Mesh(shellGeo, new THREE.MeshLambertMaterial({
+    vertexColors: true, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  glass.renderOrder = 1;
+  scene.add(glass);
+  const hexes = new THREE.Mesh(shellGeo, new THREE.MeshBasicMaterial({
+    map: hexTexture(), vertexColors: true, transparent: true, opacity: 0.32, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  hexes.renderOrder = 2;
+  scene.add(hexes);
+  // cheeks either side of each goal mouth
+  const cheek = cheekGeometry();
+  const cheekMat = (hex) => new THREE.MeshLambertMaterial({ color: hex, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+  for (const s of [-1, 1]) for (const t of [-1, 1]) {
+    const m = new THREE.Mesh(cheek, cheekMat(s < 0 ? 0x3d86ff : 0xff8a2e));
+    m.scale.x = s;
+    m.position.z = t * goalHalfW;
+    m.renderOrder = 1;
     scene.add(m);
-    return m;
-  };
-  const G = FIELD.cornerGap;
-  // long side walls: stop short of the corners, open around touchline podiums,
-  // and each half glows in its team colour
-  for (const s of [-1, 1]) {
-    const z = s * (halfZ + 0.1);
-    const gaps = FIELD.touchPods.filter((p) => p.side === s).map((p) => [p.x - G, p.x + G]).sort((a, b) => a[0] - b[0]);
-    const segs = [];
-    let from = -(halfX - G);
-    for (const [a, b] of gaps) { segs.push([from, a]); from = b; }
-    segs.push([from, halfX - G]);
-    for (const [a, b] of segs) {
-      box(b - a, wallH, 0.2, glass, (a + b) / 2, wallH / 2, z);
-      for (const [lo, hi, mat] of [[a, Math.min(b, 0), blueN], [Math.max(a, 0), b, orangeN]]) {
-        if (hi - lo < 0.05) continue;
-        box(hi - lo, 0.18, 0.3, mat, (lo + hi) / 2, wallH, z);
-        box(hi - lo, 0.12, 0.3, mat, (lo + hi) / 2, 0.08, z);
-      }
+  }
+  // glowing team-colour trim where the grass meets the ramps
+  const trim = (hex) => new THREE.MeshBasicMaterial({ color: hex });
+  for (const [x0, x1, hex] of [[-flatX, 0, TEAM.blue], [0, flatX, TEAM.orange]]) for (const t of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.08, 0.3), trim(hex));
+    m.position.set((x0 + x1) / 2, 0.04, t * flatZ);
+    scene.add(m);
+  }
+  for (const s of [-1, 1]) for (const [z0, z1] of [[-flatZ, -goalHalfW], [goalHalfW, flatZ]]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, z1 - z0), trim(s < 0 ? TEAM.blue : TEAM.orange));
+    m.position.set(s * flatX, 0.04, (z0 + z1) / 2);
+    scene.add(m);
+  }
+  // stadium light rigs above the glass ceiling
+  const rig = new THREE.MeshBasicMaterial({ color: 0xfdfcf2 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x3a4150, roughness: 0.6, metalness: 0.6 });
+  for (const z of [-flatZ + 4, flatZ - 4]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(flatX * 2 - 10, 0.6, 1.6), frame);
+    bar.position.set(0, height + 1.2, z);
+    scene.add(bar);
+    for (let x = -flatX + 10; x <= flatX - 10; x += 8) {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 1.2), rig);
+      l.position.set(x, height + 0.85, z);
+      scene.add(l);
     }
   }
-  // half-circle alcoves behind touchline podiums
-  for (const p of FIELD.touchPods) {
-    const mat = p.x < 0 ? blueN : p.x > 0 ? orangeN : whiteN; // the halfway one is neutral
-    const a = new THREE.Group();
-    a.position.set(p.x, 0, p.side * halfZ);
-    a.scale.set(1, 1, p.side); // built for the bottom touchline (+z is outside), mirrored for the top
-    const arc = (h, y, mtl) => {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(G, G, h, 40, 1, true, -Math.PI / 2, Math.PI), mtl);
-      m.position.y = y;
-      a.add(m);
-    };
-    arc(wallH, wallH / 2, glass);
-    arc(0.18, wallH, new THREE.MeshBasicMaterial({ color: mat.color, side: THREE.DoubleSide }));
-    arc(0.12, 0.08, new THREE.MeshBasicMaterial({ color: mat.color, side: THREE.DoubleSide }));
-    for (const px of [-G, G]) {
-      const pl = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallH + 0.4, 0.5), whiteN);
-      pl.position.set(px, (wallH + 0.4) / 2, 0);
-      a.add(pl);
-    }
-    const f = new THREE.Mesh(new THREE.CircleGeometry(G, 32, Math.PI, Math.PI), new THREE.MeshStandardMaterial({ color: 0x0c1230, roughness: 0.8, side: THREE.DoubleSide }));
-    f.rotation.x = -Math.PI / 2;
-    f.position.y = 0.01;
-    a.add(f);
-    scene.add(a);
-  }
-  // end walls either side of the goal mouth, and above it
-  for (const s of [-1, 1]) {
-    const mat = s < 0 ? blueN : orangeN;
-    const segW = halfZ - G - goalHalfW;
-    for (const t of [-1, 1]) {
-      const zc = t * (goalHalfW + segW / 2);
-      box(0.2, wallH, segW, glass, s * (halfX + 0.1), wallH / 2, zc);
-      box(0.3, 0.18, segW, mat, s * (halfX + 0.1), wallH, zc);
-      box(0.3, 0.12, segW, mat, s * (halfX + 0.1), 0.08, zc);
-    }
-    box(0.2, wallH - goalH, goalHalfW * 2, glass, s * (halfX + 0.1), (wallH + goalH) / 2, 0);
-    box(0.3, 0.18, goalHalfW * 2, mat, s * (halfX + 0.1), wallH, 0);
-  }
-  // corner alcoves: the glass swings out behind each corner podium (like a corner-flag cut-out)
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const mat = sx < 0 ? blueN : orangeN;
-    const a = new THREE.Group();
-    a.position.set(sx * halfX, 0, sz * halfZ);
-    a.scale.set(sx, 1, sz); // build the (+x,+z) corner, mirror for the others
-    // 270° arc outside the pitch, from the end of the long wall round to the end of the end wall
-    const arc = (h, y, mtl) => {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(G, G, h, 48, 1, true, -Math.PI / 2, Math.PI * 1.5), mtl);
-      m.position.y = y;
-      a.add(m);
-    };
-    arc(wallH, wallH / 2, glass);
-    arc(0.18, wallH, new THREE.MeshBasicMaterial({ color: mat.color, side: THREE.DoubleSide }));
-    arc(0.12, 0.08, new THREE.MeshBasicMaterial({ color: mat.color, side: THREE.DoubleSide }));
-    // pillars where the straight walls meet the alcove
-    for (const [px, pz] of [[-G, 0], [0, -G]]) {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallH + 0.4, 0.5), whiteN);
-      p.position.set(px, (wallH + 0.4) / 2, pz);
-      a.add(p);
-    }
-    // floor of the alcove
-    const f = new THREE.Mesh(new THREE.CircleGeometry(G, 40), new THREE.MeshStandardMaterial({ color: 0x0c1230, roughness: 0.8, side: THREE.DoubleSide }));
-    f.rotation.x = -Math.PI / 2;
-    f.position.y = 0.01;
-    a.add(f);
-    scene.add(a);
+  // ribs over the ceiling so it reads as a closed roof
+  for (let x = -halfX + 10; x <= halfX - 10; x += 20) {
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, halfZ * 2 + 2), frame);
+    rib.position.set(x, height + 0.3, 0);
+    scene.add(rib);
   }
 
   // ── goals ──
@@ -428,7 +525,7 @@ export function buildArena(scene) {
   }
 
   // ── small stands with a crowd ──
-  const standMat = new THREE.MeshStandardMaterial({ color: 0x161c3c, roughness: 0.9 });
+  const standMat = new THREE.MeshStandardMaterial({ color: 0x3a3f5c, roughness: 0.9 });
   const crowdPalette = [0x2f7bff, 0xff7a1a, 0xe9ecf5, 0x6d5dfc, 0x16213f, 0x2bd4ff, 0xffc93c, 0x384066];
   const seats = [];
   const tiers = 10, step = 2.2, rise = 1.55;
@@ -460,10 +557,9 @@ export function buildArena(scene) {
       }
     }
   };
-  const longLen = (halfX - FIELD.cornerGap - 1.5) * 2;
-  const tpGaps = (side) => FIELD.touchPods.filter((p) => p.side === side).map((p) => [p.x - FIELD.cornerGap - 1.5, p.x + FIELD.cornerGap + 1.5]);
-  addStand(longLen, true, -1, halfZ + 1, [[DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1], ...tpGaps(-1)], 2);
-  addStand(longLen, true, 1, halfZ + 1, tpGaps(1), 2);
+  const longLen = (halfX - 4) * 2;
+  addStand(longLen, true, -1, halfZ + 1, [[DUGOUT.x - DUGOUT.halfW - 1, DUGOUT.x + DUGOUT.halfW + 1]], 2);
+  addStand(longLen, true, 1, halfZ + 1);
   addStand(halfZ * 2 - 4, false, -1, halfX + goalDepth + 2);
   addStand(halfZ * 2 - 4, false, 1, halfX + goalDepth + 2);
 
@@ -482,7 +578,8 @@ export function buildArena(scene) {
   });
   scene.add(crowd);
 
-  // ── the dome: glass shell, steel ribs, neon rings, roof lamps ──
+
+  // ── the dome over the whole stadium: glass shell, steel ribs, neon rings, roof lamps ──
   buildDome(scene);
 
   return { goals };

@@ -15,7 +15,7 @@ const IDLE = { throttle: 0, steer: 0, boost: false, jump: false };
 
 export class Bot {
   // attack: -1 = scores in the blue goal (x = -60), +1 = the orange one. key: which car in Physics it drives
-  constructor({ think = 0.14, boostChance = 0.65, attack = -1, key = 'bot', kickoffDelay = 0.1 } = {}) {
+  constructor({ think = 0.14, boostChance = 0.65, attack = -1, key = 'bot', kickoffDelay = 0 } = {}) {
     this.think = think;             // seconds between decisions (reaction time)
     this.boostChance = boostChance; // how often it uses boost when it could
     this.attack = attack;
@@ -35,13 +35,15 @@ export class Bot {
     this.unstickSteer = 1;
     this.mayBoost = true;
     this.jumpHeld = false;
+    // a little human-like variety at each kickoff, so the same opening never wins every time
+    this.delay = this.kickoffDelay + Math.random() * 0.1;
   }
 
   // called every physics step (dt = 1/120)
   input(phys, dt = 1 / 120) {
     const c = phys[this.key], b = phys.ball;
     this.t += dt;
-    if (this.t < this.kickoffDelay) return IDLE;
+    if (this.t < this.delay) return IDLE;
     const { halfX, halfZ } = FIELD;
     // work in a mirrored frame where we always attack towards -x
     const m = -this.attack;
@@ -101,7 +103,9 @@ export class Bot {
     // ease off for a very tight turn so it doesn't orbit the target forever
     const throttle = Math.abs(diff) > 1.9 && dist < 9 ? 0 : 1;
     const aligned = Math.abs(diff) < 0.28;
-    const boost = this.mayBoost && aligned && c.onGround && (dist > 16 || this.shooting) && c.boost > 8;
+    // kickoff: always race for the ball at full boost, like a real player would
+    const kickoff = this.t < this.delay + 1.6;
+    const boost = (kickoff || this.mayBoost) && aligned && c.onGround && (dist > 16 || this.shooting || kickoff) && c.boost > 8;
 
     // jump at a ball that is bouncing at roof height, right in front
     const bd = Math.hypot(b.pos.x - c.pos.x, b.pos.z - c.pos.z);

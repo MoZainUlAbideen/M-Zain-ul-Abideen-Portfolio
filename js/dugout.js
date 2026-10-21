@@ -175,11 +175,13 @@ export function buildDugout(scene) {
   const dashMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
   dashMat.userData.unique = true; // animated, never share it
   const dash = (x, z, lx, lz) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(lx, lz), dashMat); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.035, z); area.add(m); };
-  for (let t = -w / 2; t < w / 2; t += 1.4) dash(cx + t + 0.45, -halfZ + depthA, 0.9, 0.22);
-  for (const s of [-1, 1]) for (let t = 0; t < depthA; t += 1.4) dash(cx + s * w / 2, -halfZ + t + 0.45, 0.22, 0.9);
+  // on the grass just in front of the ramp (the arena is closed, so the area sits inside the glass)
+  const za = -FIELD.flatZ;
+  for (let t = -w / 2; t < w / 2; t += 1.4) for (const zz of [za, za + depthA]) dash(cx + t + 0.45, zz, 0.9, 0.22);
+  for (const s of [-1, 1]) for (let t = 0; t < depthA; t += 1.4) dash(cx + s * w / 2, za + t + 0.45, 0.22, 0.9);
   const fill = new THREE.Mesh(new THREE.PlaneGeometry(w, depthA), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, depthWrite: false }));
   fill.rotation.x = -Math.PI / 2;
-  fill.position.set(cx, 0.03, -halfZ + depthA / 2);
+  fill.position.set(cx, 0.03, za + depthA / 2);
   area.add(fill);
   d.add(area);
 
@@ -203,7 +205,7 @@ export function buildDugout(scene) {
 
   // where the car has to be to press E (centre of the technical area)
   const spot = {
-    x: cx, z: -halfZ + depthA / 2,
+    x: cx, z: za + depthA / 2,
     data: { id: 'academy', label: 'MY ACADEMY', color: ACADEMY_COLOR },
   };
 

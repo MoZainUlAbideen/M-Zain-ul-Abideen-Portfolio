@@ -217,7 +217,7 @@ kbd {
 
 .help {
   position: absolute; left: 16px; bottom: 16px;
-  display: flex; flex-wrap: wrap; gap: 8px 14px; max-width: 420px;
+  display: flex; flex-wrap: wrap; gap: 8px 14px; max-width: 560px;
   padding: 10px 14px;
   background: var(--glass); border: 1px solid var(--line); border-radius: 12px;
   font-size: 12px; color: var(--ink-soft);
