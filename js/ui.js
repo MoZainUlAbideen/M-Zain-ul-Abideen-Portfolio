@@ -131,6 +131,14 @@ export class UI {
     if (p.vision) {
       p.vision.forEach((s, i) => {
         body.append(el('h3', { class: 'section' }, s.heading));
+        if (s.gallery) {
+          // one wide picture, then a row of thumbnails; each opens full size in a new tab
+          body.append(el('div', { class: 'vgal' }, s.gallery.map((g) => {
+            const a = el('a', { href: g.src, target: '_blank', rel: 'noopener' }, el('img', { src: g.src, alt: g.alt, loading: 'lazy' }));
+            return a;
+          })));
+          return;
+        }
         if (s.compare) {
           // full-width "real vs game" picture
           body.append(el('div', { class: 'story story--compare' },

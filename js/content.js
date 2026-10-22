@@ -75,6 +75,15 @@ export const PODIUMS = [
           compare: true,
           alt: 'The purple Beyond Mini 4WD toy car next to its 3D replica from this game, split by a zig-zag line',
         },
+        {
+          heading: 'The arena today',
+          gallery: [
+            { src: 'assets/life/arena-hero.jpg', alt: 'The arena from just under the glass dome, with the city skyline beyond it' },
+            { src: 'assets/life/arena-pitch.jpg', alt: 'Down on the pitch behind the purple car, the ball ahead and the city towers above the stands' },
+            { src: 'assets/life/arena-wall.jpg', alt: 'The car driving up the curved glass wall, with the skyline behind it' },
+            { src: 'assets/life/arena-city.jpg', alt: 'From above the city: the glass dome over the stadium, ringed by towers' },
+          ],
+        },
       ],
     },
   },
