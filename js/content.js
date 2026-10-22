@@ -264,11 +264,11 @@ export const PODIUMS = [
           href: 'https://dehqan.vercel.app',
           tagline: 'A crop doctor for Pakistani farmers that tells you when it is not sure.',
           points: [
-            '27-condition, 14-crop leaf-disease classifier with its lab-to-field gap exposed (95.5% on lab photos, 11.5% in real fields); 1,800 field photos raised field accuracy to 47.4% vs a 7.4% baseline.',
-            'Selective prediction defers to extension offices below 0.9 confidence (79% accuracy on answered photos), plus a zero-shot CLIP leaf gate and a segmentation severity grader (81.5% vs 42% baseline).',
-            'Routes English, Roman Urdu and Urdu questions (90% on a frozen test set), refuses pesticide-dose requests (7/7), and finds safe spray windows from a live 5-day forecast.',
+            '27-condition, 13-crop leaf-disease classifier with its lab-to-field gap exposed (95.5% on lab photos, 11.5% in real fields); a CLIP embedding with a trained head raised held-out field accuracy to 61.6% as deployed in int8 ONNX (63.8% in PyTorch) vs a 7.4% baseline.',
+            'Selective prediction defers to extension offices below 0.9 confidence (answers 56% of field photos at 81% accuracy), a zero-shot CLIP leaf gate (99.8% of leaves accepted vs 23.6% using classifier confidence) and a segmentation severity grader (81.5% vs 42% baseline).',
+            'Urdu/English voice chat (in-browser speech recognition and read-aloud, zero server cost) over a router for English, Roman Urdu and Urdu questions (90% on a frozen test set) that refused 7/7 pesticide-dose requests.',
           ],
-          tech: ['Python', 'PyTorch', 'CLIP', 'Segmentation'],
+          tech: ['Python', 'PyTorch', 'CLIP', 'ONNX'],
           links: [
             { label: 'Live', href: 'https://dehqan.vercel.app' },
             { label: 'GitHub', href: `${GH}/Dehqan` },

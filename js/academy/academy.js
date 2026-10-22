@@ -64,7 +64,7 @@ const PATHS = [
     lead: 'A model that is wrong with confidence is worse than one that says “I’m not sure”. Each batch shows a leaf-disease model’s predictions on a confidence scale. Set the bar it must clear before it is allowed to answer a farmer.',
     steps: ['Read the field notes for the batch.', 'Drag the threshold: dots to the right get an answer, dots to the left go to a human expert.', 'Meet the goals for accuracy and for how many farmers still get help.', 'The last batch unlocks a leaf gate for photos that aren’t leaves at all.'],
     built: 'Dehqan: selective prediction + a zero-shot CLIP leaf gate',
-    lesson: 'This is selective prediction, the core of Dehqan. Lab accuracy (95.5%) collapsed on real field photos (11.5%), so the model answers only above 0.9 confidence: about a quarter of field photos, 79% of them correct, and the rest go to an extension office. A CLIP check rejects non-leaves first, because no confidence threshold can stop a model that is confidently wrong about a shoe.',
+    lesson: 'This is selective prediction, the core of Dehqan. Lab accuracy (95.5%) collapsed on real field photos (11.5%), so the model answers only above 0.9 confidence: 56% of field photos, 81% of them correct, and the rest go to an extension office. A CLIP check rejects non-leaves first, because no confidence threshold can stop a model that is confidently wrong about a shoe.',
   },
 ];
 
