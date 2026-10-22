@@ -404,7 +404,8 @@ export function buildArena(scene) {
   const tiles = techTileTextures();
   const plaza = new THREE.Mesh(
     new THREE.CircleGeometry(1, 96),
-    new THREE.MeshLambertMaterial({ map: tiles.map, emissiveMap: tiles.glow, emissive: 0xffffff, emissiveIntensity: 0.55 }),
+    // toned down (a darker tint, softer glow) so it frames the pitch without shouting over it
+    new THREE.MeshLambertMaterial({ map: tiles.map, color: 0x8f7c72, emissiveMap: tiles.glow, emissive: 0xffffff, emissiveIntensity: 0.22 }),
   );
   plaza.rotation.x = -Math.PI / 2;
   plaza.scale.set(DOME.ax + 6, DOME.az + 6, 1);
@@ -412,7 +413,7 @@ export function buildArena(scene) {
   plaza.receiveShadow = true;
   scene.add(plaza);
   // a glowing orange ring where the dome meets the ground
-  const rim = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: 0xff8a3a, side: THREE.DoubleSide }));
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: 0xc8682c, side: THREE.DoubleSide }));
   rim.rotation.x = -Math.PI / 2;
   rim.scale.set(DOME.ax + 6, DOME.az + 6, 1);
   rim.position.y = 0.02;
