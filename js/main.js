@@ -58,7 +58,7 @@ const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.35;
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 600);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 900);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));

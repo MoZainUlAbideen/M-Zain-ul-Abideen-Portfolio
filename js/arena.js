@@ -382,7 +382,7 @@ export function buildArena(scene) {
   const { halfX, halfZ, height, R, goalHalfW, goalH, goalDepth, postR, flatX, flatZ } = FIELD;
 
   scene.background = skyTexture();
-  scene.fog = new THREE.Fog(0xf6c9a0, 200, 460);
+  scene.fog = new THREE.Fog(0xf6c9a0, 220, 620);
 
   // ── lights: a warm late-afternoon sun ──
   scene.add(new THREE.HemisphereLight(0xd6eaff, 0x8a5a3a, 1.2));
@@ -395,12 +395,31 @@ export function buildArena(scene) {
   sun.shadow.normalBias = 0.04;
   scene.add(sun);
 
-  // ── ground outside the stadium ──
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: 0x9a7058, roughness: 1 }));
-  outer.rotation.x = -Math.PI / 2;
-  outer.position.y = -0.05;
-  outer.receiveShadow = true;
-  scene.add(outer);
+  // ── ground: orange tech tiles under the dome, city pavement beyond it ──
+  const city = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), new THREE.MeshStandardMaterial({ color: 0x7c8088, roughness: 1 }));
+  city.rotation.x = -Math.PI / 2;
+  city.position.y = -0.08;
+  city.receiveShadow = true;
+  scene.add(city);
+  const tiles = techTileTextures();
+  const plaza = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 96),
+    new THREE.MeshLambertMaterial({ map: tiles.map, emissiveMap: tiles.glow, emissive: 0xffffff, emissiveIntensity: 0.55 }),
+  );
+  plaza.rotation.x = -Math.PI / 2;
+  plaza.scale.set(DOME.ax + 6, DOME.az + 6, 1);
+  plaza.position.y = -0.04;
+  plaza.receiveShadow = true;
+  scene.add(plaza);
+  // a glowing orange ring where the dome meets the ground
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: 0xff8a3a, side: THREE.DoubleSide }));
+  rim.rotation.x = -Math.PI / 2;
+  rim.scale.set(DOME.ax + 6, DOME.az + 6, 1);
+  rim.position.y = 0.02;
+  scene.add(rim);
+
+  // ── the city around the stadium ──
+  buildCity(scene);
 
   // ── pitch: the flat floor and the two goal mouths ──
   // Lambert (no specular) keeps the floor dark at low camera angles; the glow comes from the emissive layer
@@ -682,4 +701,102 @@ function buildDome(scene) {
     }
     scene.add(head);
   }
+}
+
+// One orange tech tile (the original pitch look): rounded tile, glowing pale-gold outline, circuit
+// dots and a trace. Tiled across the ground under the dome. Returns { map, glow } (repeating).
+function techTileTextures() {
+  const N = 256, mk = () => { const c = document.createElement('canvas'); c.width = c.height = N; return c; };
+  const baseC = mk(), glowC = mk();
+  const base = baseC.getContext('2d'), glow = glowC.getContext('2d');
+  const rrect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  };
+  let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  base.fillStyle = '#d9631f'; base.fillRect(0, 0, N, N);
+  glow.fillStyle = '#000'; glow.fillRect(0, 0, N, N);
+  const inset = 14, rad = 26;
+  rrect(base, inset, inset, N - inset * 2, N - inset * 2, rad);
+  base.fillStyle = '#ec7a28'; base.fill();
+  base.fillStyle = 'rgba(255,235,200,.16)';
+  for (let x = inset + 16; x < N - inset - 10; x += 18) for (let y = inset + 16; y < N - inset - 10; y += 18) if (rnd() < 0.5) base.fillRect(x, y, 4, 4);
+  base.strokeStyle = 'rgba(255,235,200,.2)'; base.lineWidth = 4;
+  base.beginPath(); base.moveTo(60, 120); base.lineTo(130, 120); base.lineTo(150, 160); base.lineTo(200, 160); base.stroke();
+  for (const [ctx, col, a] of [[base, '255,214,140', 0.7], [glow, '255,214,140', 1]]) {
+    rrect(ctx, inset, inset, N - inset * 2, N - inset * 2, rad);
+    if (ctx === glow) { ctx.shadowColor = `rgba(${col},1)`; ctx.shadowBlur = 12; }
+    ctx.strokeStyle = `rgba(${col},${a})`; ctx.lineWidth = 6; ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  const tex = (c) => {
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+    t.repeat.set(36, 36); // the plaza circle has UVs 0..1 across its width (~276 units): ~7.6-unit tiles
+    return t;
+  };
+  return { map: tex(baseC), glow: tex(glowC) };
+}
+
+// Window grid for the city's buildings (lit windows glow a little at dusk).
+function windowTextures(tint) {
+  const N = 64, mk = () => { const c = document.createElement('canvas'); c.width = c.height = N; return c; };
+  const baseC = mk(), glowC = mk();
+  const base = baseC.getContext('2d'), glow = glowC.getContext('2d');
+  let seed = tint.length * 97 + 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  base.fillStyle = tint; base.fillRect(0, 0, N, N);
+  glow.fillStyle = '#000'; glow.fillRect(0, 0, N, N);
+  for (let y = 4; y < N; y += 16) for (let x = 4; x < N; x += 16) {
+    const lit = rnd() < 0.35;
+    base.fillStyle = lit ? '#ffe3b8' : 'rgba(34,48,72,.42)';
+    base.fillRect(x, y, 9, 10);
+    if (lit) { glow.fillStyle = '#ffcf8a'; glow.fillRect(x, y, 9, 10); }
+  }
+  const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+  return { map: tex(baseC), glow: tex(glowC) };
+}
+
+// A ring of city blocks around the stadium, beyond the dome: towers near the back, lower blocks
+// in front, so the skyline shows above the stands from the pitch.
+function buildCity(scene) {
+  const tints = ['#7f97b3', '#9eb0c4', '#6b8099', '#b9b3a8', '#8a9bb0']; // glass blues and one warm concrete
+  const mats = tints.map((tint) => {
+    const { map, glow } = windowTextures(tint);
+    return new THREE.MeshStandardMaterial({ map, emissiveMap: glow, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.6, metalness: 0.2 });
+  });
+  const roof = new THREE.MeshStandardMaterial({ color: 0x4d5562, roughness: 0.8 });
+  let seed = 42; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const CELL = 11; // one texture tile = 11 units (4 x 4 windows), the same on every building
+  const city = new THREE.Group();
+  const add = (x, z, w, d, h) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    // scale UVs so the windows keep the same size whatever the building's size
+    const uv = g.attributes.uv;
+    const faces = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]]; // +x -x +y -y +z -z
+    for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
+      const i = f * 4 + k;
+      uv.setXY(i, uv.getX(i) * faces[f][0] / CELL, uv.getY(i) * faces[f][1] / CELL);
+    }
+    // one wall material per building + a roof slab, so the whole city merges into a few draw calls
+    const m = new THREE.Mesh(g, mats[Math.floor(rnd() * mats.length) % mats.length]);
+    m.position.set(x, h / 2, z);
+    m.receiveShadow = true;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.8, d + 0.6), roof);
+    top.position.set(x, h + 0.4, z);
+    city.add(m, top);
+  };
+  // rings of blocks: distance grows, buildings get taller further out (a skyline behind the stands)
+  for (const [r0, r1, hMin, hMax, step] of [[175, 215, 18, 45, 0.11], [225, 275, 35, 90, 0.085], [290, 360, 60, 150, 0.07]]) {
+    for (let a = 0; a < Math.PI * 2; a += step * (0.7 + rnd() * 0.6)) {
+      const r = r0 + rnd() * (r1 - r0);
+      const x = Math.cos(a) * r * 1.15, z = Math.sin(a) * r;
+      const w = 12 + rnd() * 18, d = 12 + rnd() * 18;
+      const h = hMin + rnd() * (hMax - hMin) * (rnd() < 0.15 ? 1.4 : 1);
+      add(x, z, w, d, h);
+      // a smaller block beside some buildings for a less regular skyline
+      if (rnd() < 0.4) add(x + (rnd() - 0.5) * 20, z + (rnd() - 0.5) * 20, 8 + rnd() * 8, 8 + rnd() * 8, h * (0.4 + rnd() * 0.4));
+    }
+  }
+  scene.add(city);
 }
